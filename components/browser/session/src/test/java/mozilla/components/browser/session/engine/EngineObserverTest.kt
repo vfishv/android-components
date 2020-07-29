@@ -11,9 +11,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import mozilla.components.browser.session.Session
 import mozilla.components.browser.session.SessionManager
 import mozilla.components.browser.session.engine.request.LoadRequestOption
+import mozilla.components.browser.state.action.BrowserAction
 import mozilla.components.browser.state.action.ContentAction
+import mozilla.components.browser.state.action.CrashAction
 import mozilla.components.browser.state.action.TrackingProtectionAction
 import mozilla.components.browser.state.selector.findTab
+import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.content.FindResultState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.EngineSession
@@ -27,6 +30,7 @@ import mozilla.components.concept.engine.media.Media
 import mozilla.components.concept.engine.permission.PermissionRequest
 import mozilla.components.concept.engine.prompt.PromptRequest
 import mozilla.components.concept.engine.window.WindowRequest
+import mozilla.components.lib.state.MiddlewareStore
 import mozilla.components.support.base.observer.Consumable
 import mozilla.components.support.test.any
 import mozilla.components.support.test.libstate.ext.waitUntilIdle
@@ -90,7 +94,7 @@ class EngineObserverTest {
                 notifyObservers { onNavigationStateChange(true, true) }
             }
         }
-        engineSession.register(EngineObserver(session))
+        engineSession.register(EngineObserver(session, mock()))
 
         engineSession.loadUrl("http://mozilla.org")
         engineSession.toggleDesktopMode(true)
@@ -139,7 +143,7 @@ class EngineObserverTest {
                 }
             }
         }
-        engineSession.register(EngineObserver(session))
+        engineSession.register(EngineObserver(session, mock()))
 
         engineSession.loadUrl("http://mozilla.org")
         assertEquals(Session.SecurityInfo(false), session.securityInfo)
@@ -183,7 +187,7 @@ class EngineObserverTest {
             override fun exitFullScreenMode() {}
             override fun recoverFromCrash(): Boolean { return false }
         }
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         engineSession.register(observer)
 
         engineSession.enableTrackingProtection()
@@ -205,10 +209,9 @@ class EngineObserverTest {
     @Test
     fun engineSessionObserverExcludedOnTrackingProtection() {
         val session = Session("")
-        val store = mock(BrowserStore::class.java)
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
 
-        whenever(store.dispatch(any())).thenReturn(mock())
         observer.onExcludedOnTrackingProtectionChange(true)
 
         verify(store).dispatch(
@@ -224,7 +227,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         session.title = "Hello World"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onTitleChange("Mozilla")
 
         assertEquals("Mozilla", session.title)
@@ -239,7 +242,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         session.title = "Hello World"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onTitleChange("Mozilla")
 
         assertEquals("Mozilla", session.title)
@@ -254,7 +257,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         session.title = "Hello World"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onTitleChange("Mozilla")
 
         assertEquals("Mozilla", session.title)
@@ -267,7 +270,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverClearsBlockedTrackersIfNewPageStartsLoading() {
         val session = Session("https://www.mozilla.org")
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         val tracker1 = Tracker("tracker1")
         val tracker2 = Tracker("tracker2")
@@ -282,7 +285,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverClearsLoadedTrackersIfNewPageStartsLoading() {
         val session = Session("https://www.mozilla.org")
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         val tracker1 = Tracker("tracker1")
         val tracker2 = Tracker("tracker2")
@@ -299,7 +302,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         val manifest = WebAppManifest(name = "Mozilla", startUrl = "https://mozilla.org")
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onWebAppManifestLoaded(manifest)
 
         assertEquals(manifest, session.webAppManifest)
@@ -313,7 +316,7 @@ class EngineObserverTest {
     fun engineObserverClearsContentPermissionRequestIfNewPageStartsLoading() {
         val session = Session("https://www.mozilla.org")
         val permissionRequest: PermissionRequest = mock()
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         observer.onContentPermissionRequest(permissionRequest)
 
@@ -327,7 +330,7 @@ class EngineObserverTest {
     fun engineObserverDoesNotClearContentPermissionRequestIfSamePageStartsLoading() {
         val session = Session("https://www.mozilla.org")
         val permissionRequest: PermissionRequest = mock()
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         observer.onContentPermissionRequest(permissionRequest)
 
@@ -342,7 +345,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         val manifest = WebAppManifest(name = "Mozilla", startUrl = "https://www.mozilla.org")
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onWebAppManifestLoaded(manifest)
 
         assertEquals(manifest, session.webAppManifest)
@@ -361,7 +364,7 @@ class EngineObserverTest {
             scope = "https://www.mozilla.org/hello/"
         )
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onWebAppManifestLoaded(manifest)
 
         assertEquals(manifest, session.webAppManifest)
@@ -376,7 +379,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverPassingHitResult() {
         val session = Session("https://www.mozilla.org", id = "test-id")
-        val store: BrowserStore = mock()
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
         val hitResult = HitResult.UNKNOWN("data://foobar")
 
@@ -390,7 +393,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverClearsFindResults() {
         val session = Session("https://www.mozilla.org", id = "test-id")
-        val store: BrowserStore = mock()
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
 
         observer.onFindResult(0, 1, false)
@@ -410,7 +413,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverClearsFindResultIfNewPageStartsLoading() {
         val session = Session("https://www.mozilla.org", id = "test-id")
-        val store: BrowserStore = mock()
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
 
         observer.onFindResult(0, 1, false)
@@ -435,7 +438,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverNotifiesFullscreenMode() {
         val session = Session("https://www.mozilla.org", id = "test-id")
-        val store: BrowserStore = mock()
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
 
         observer.onFullScreenChange(true)
@@ -454,7 +457,7 @@ class EngineObserverTest {
 
     @Test
     fun engineObserverNotifiesMetaViewportFitChange() {
-        val store: BrowserStore = mock()
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val session = Session("https://www.mozilla.org", id = "test-id")
         val observer = EngineObserver(session, store)
 
@@ -485,17 +488,21 @@ class EngineObserverTest {
 
     @Test
     fun `Engine observer notified when thumbnail is assigned`() {
-        val session = Session("https://www.mozilla.org")
-        val observer = EngineObserver(session)
+        val session = Session("https://www.mozilla.org", id = "test-id")
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
+        val observer = EngineObserver(session, store)
         val emptyBitmap = spy(Bitmap::class.java)
         observer.onThumbnailChange(emptyBitmap)
-        assertEquals(emptyBitmap, session.thumbnail)
+
+        verify(store).dispatch(ContentAction.UpdateThumbnailAction(
+            "test-id", emptyBitmap
+        ))
     }
 
     @Test
     fun engineObserverNotifiesWebAppManifest() {
         val session = Session("https://www.mozilla.org")
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         val manifest = WebAppManifest(
             name = "Minimal",
             startUrl = "/"
@@ -509,7 +516,7 @@ class EngineObserverTest {
     fun engineSessionObserverWithContentPermissionRequests() {
         val permissionRequest = mock(PermissionRequest::class.java)
         val session = Session("")
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         assertTrue(session.contentPermissionRequest.isConsumed())
         observer.onContentPermissionRequest(permissionRequest)
@@ -523,7 +530,7 @@ class EngineObserverTest {
     fun engineSessionObserverWithAppPermissionRequests() {
         val permissionRequest = mock(PermissionRequest::class.java)
         val session = Session("")
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
 
         assertTrue(session.appPermissionRequest.isConsumed())
         observer.onAppPermissionRequest(permissionRequest)
@@ -536,7 +543,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         session.contentPermissionRequest = Consumable.from(permissionRequest)
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onLocationChange("https://getpocket.com")
 
         verify(permissionRequest).reject()
@@ -547,7 +554,7 @@ class EngineObserverTest {
     fun engineObserverHandlesPromptRequest() {
         val promptRequest = mock(PromptRequest::class.java)
         val session = Session(id = "test-session", initialUrl = "")
-        val store = mock(BrowserStore::class.java)
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
 
         observer.onPromptRequest(promptRequest)
@@ -561,7 +568,7 @@ class EngineObserverTest {
     fun engineObserverHandlesWindowRequest() {
         val windowRequest = mock(WindowRequest::class.java)
         val session = Session("")
-        val store = mock(BrowserStore::class.java)
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         whenever(store.state).thenReturn(mock())
         val observer = EngineObserver(session, store)
 
@@ -575,7 +582,7 @@ class EngineObserverTest {
     @Test
     fun engineObserverHandlesFirstContentfulPaint() {
         val session = Session("")
-        val store = mock(BrowserStore::class.java)
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         whenever(store.state).thenReturn(mock())
         val observer = EngineObserver(session, store)
 
@@ -595,7 +602,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org", id = "test-tab").also {
             sessionManager.add(it)
         }
-        val observer = EngineObserver(session, store)
+        val observer = EngineObserver(session, store.toMiddlewareStore())
         assertEquals(0, store.state.media.elements.size)
 
         val media1: Media = spy(object : Media() {
@@ -647,7 +654,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org", id = "test-tab").also {
             sessionManager.add(it)
         }
-        val observer = EngineObserver(session, store)
+        val observer = EngineObserver(session, store.toMiddlewareStore())
 
         val media1: Media = spy(object : Media() {
             override val controller: Controller = mock()
@@ -695,7 +702,7 @@ class EngineObserverTest {
             sessionManager.add(it)
         }
 
-        val observer = EngineObserver(session, store)
+        val observer = EngineObserver(session, store.toMiddlewareStore())
 
         observer.onExternalResource(
                 url = "mozilla.org/file.txt",
@@ -724,7 +731,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org", id = "test-tab").also {
             sessionManager.add(it)
         }
-        val observer = EngineObserver(session, store)
+        val observer = EngineObserver(session, store.toMiddlewareStore())
 
         observer.onExternalResource(url = "mozilla.org/file.txt", contentLength = -1)
 
@@ -737,18 +744,16 @@ class EngineObserverTest {
 
     @Test
     fun `onCrashStateChanged will update session and notify observer`() {
-        val session = Session("https://www.mozilla.org")
-        assertFalse(session.crashed)
+        val session = Session("https://www.mozilla.org", id = "test-id")
 
-        val observer = EngineObserver(session)
-
-        observer.onCrash()
-        assertTrue(session.crashed)
-
-        session.crashed = false
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
+        val observer = EngineObserver(session, store)
 
         observer.onCrash()
-        assertTrue(session.crashed)
+
+        verify(store).dispatch(CrashAction.SessionCrashedAction(
+            "test-id"
+        ))
     }
 
     @Test
@@ -756,7 +761,7 @@ class EngineObserverTest {
         val session = Session("https://www.mozilla.org")
         session.searchTerms = "Mozilla Foundation"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onLocationChange("https://www.mozilla.org/en-US/")
 
         assertEquals("Mozilla Foundation", session.searchTerms)
@@ -768,7 +773,7 @@ class EngineObserverTest {
         val session = Session(url)
         session.searchTerms = "Mozilla Foundation"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onLoadRequest(url = url, triggeredByRedirect = false, triggeredByWebContent = true)
 
         assertEquals("", session.searchTerms)
@@ -785,7 +790,7 @@ class EngineObserverTest {
         val session = Session(url)
         session.searchTerms = "Mozilla Foundation"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onLoadRequest(url = url, triggeredByRedirect = true, triggeredByWebContent = false)
 
         assertEquals("", session.searchTerms)
@@ -802,7 +807,7 @@ class EngineObserverTest {
         val session = Session(url)
         session.searchTerms = "Mozilla Foundation"
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onLoadRequest(url = url, triggeredByRedirect = false, triggeredByWebContent = false)
 
         assertEquals("Mozilla Foundation", session.searchTerms)
@@ -819,7 +824,7 @@ class EngineObserverTest {
         val url = "https://www.mozilla.org"
         val session = Session(url)
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         val intent: Intent = mock()
         observer.onLaunchIntentRequest(url = url, appIntent = intent)
 
@@ -837,7 +842,7 @@ class EngineObserverTest {
         session.searchTerms = "Mozilla Foundation"
         session.canGoBack = true
 
-        val observer = EngineObserver(session)
+        val observer = EngineObserver(session, mock())
         observer.onNavigateBack()
 
         assertEquals("", session.searchTerms)
@@ -846,9 +851,8 @@ class EngineObserverTest {
     @Test
     fun `onHistoryStateChanged dispatches UpdateHistoryStateAction`() {
         val session = Session("")
-        val store = mock(BrowserStore::class.java)
+        val store: MiddlewareStore<BrowserState, BrowserAction> = mock()
         val observer = EngineObserver(session, store)
-        whenever(store.dispatch(any())).thenReturn(mock())
 
         observer.onHistoryStateChanged(emptyList(), 0)
         verify(store).dispatch(
@@ -863,6 +867,7 @@ class EngineObserverTest {
             HistoryItem("Firefox", "https://firefox.com"),
             HistoryItem("Mozilla", "http://mozilla.org")
         ), 1)
+
         verify(store).dispatch(
             ContentAction.UpdateHistoryStateAction(
                 session.id,
@@ -873,5 +878,17 @@ class EngineObserverTest {
                 currentIndex = 1
             )
         )
+    }
+}
+
+private fun BrowserStore.toMiddlewareStore(): MiddlewareStore<BrowserState, BrowserAction> {
+    val store = this
+    return object : MiddlewareStore<BrowserState, BrowserAction> {
+        override val state: BrowserState
+            get() = store.state
+
+        override fun dispatch(action: BrowserAction) {
+            store.dispatch(action)
+        }
     }
 }
