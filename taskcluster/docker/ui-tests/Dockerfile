@@ -28,6 +28,10 @@ RUN curl https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud
     && ${TEST_TOOLS}/google-cloud-sdk/install.sh --quiet \
     && ${TEST_TOOLS}/google-cloud-sdk/bin/gcloud --quiet components update
 
+#------------------------
+#-- Flank v20.08.2 ------
+#------------------------
+
 RUN URL_FLANK_BIN="$($CURL --silent 'https://api.github.com/repos/TestArmada/flank/releases/latest' | jq -r '.assets[].browser_download_url')" \
     && $CURL --output "${TEST_TOOLS}/flank.jar" "${URL_FLANK_BIN}" \
     && chmod +x "${TEST_TOOLS}/flank.jar"
