@@ -16,6 +16,7 @@ import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.support.test.ext.joinBlocking
+import mozilla.components.support.test.libstate.ext.waitUntilIdle
 import mozilla.components.support.test.mock
 import mozilla.components.support.test.whenever
 import org.junit.Assert.assertEquals
@@ -57,6 +58,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -94,6 +96,7 @@ class EngineDelegateMiddlewareTest {
         ).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = true, contextId = null)
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -129,6 +132,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = "test-container")
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -164,6 +168,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine, never()).createSession(ArgumentMatchers.anyBoolean(), ArgumentMatchers.anyString())
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -201,6 +206,7 @@ class EngineDelegateMiddlewareTest {
         ).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine, never()).createSession(ArgumentMatchers.anyBoolean(), ArgumentMatchers.anyString())
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -236,6 +242,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine, never()).createSession(ArgumentMatchers.anyBoolean(), ArgumentMatchers.anyString())
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -277,6 +284,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com", parentEngineSession)
@@ -315,6 +323,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine, times(1)).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).loadUrl("https://www.firefox.com")
@@ -354,6 +363,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engineSession, times(1)).loadUrl(
             "https://www.firefox.com",
@@ -376,8 +386,10 @@ class EngineDelegateMiddlewareTest {
         val scope = CoroutineScope(dispatcher)
 
         val tab = createTab("https://www.mozilla.org", id = "test-tab")
+
         val session: Session = mock()
         whenever(session.id).thenReturn(tab.id)
+
         val store = BrowserStore(
             middleware = EngineMiddleware.create(
                 engine = engine,
@@ -395,9 +407,11 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).loadUrl("https://www.mozilla.org")
+
         assertEquals(engineSession, store.state.tabs[0].engineState.engineSession)
     }
 
@@ -427,6 +441,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine, never()).createSession(ArgumentMatchers.anyBoolean(), ArgumentMatchers.anyString())
         assertNull(store.state.tabs[0].engineState.engineSession)
@@ -463,6 +478,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).loadData(
@@ -502,6 +518,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).reload(
@@ -538,6 +555,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).goForward()
@@ -572,6 +590,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).goBack()
@@ -607,6 +626,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).goToHistoryIndex(42)
@@ -642,6 +662,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).toggleDesktopMode(enable = true, reload = true)
@@ -677,6 +698,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).toggleDesktopMode(enable = false, reload = true)
@@ -706,11 +728,12 @@ class EngineDelegateMiddlewareTest {
             )
         )
 
-        store.dispatch(EngineAction.ExitFullscreenModeAction(
+        store.dispatch(EngineAction.ExitFullScreenModeAction(
             "test-tab"
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).exitFullScreenMode()
@@ -746,6 +769,7 @@ class EngineDelegateMiddlewareTest {
         )).joinBlocking()
 
         dispatcher.advanceUntilIdle()
+        store.waitUntilIdle()
 
         verify(engine).createSession(private = false, contextId = null)
         verify(engineSession, times(1)).clearData(Engine.BrowsingData.allCaches())
