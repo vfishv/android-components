@@ -39,7 +39,7 @@ object Versions {
         const val appcompat = "1.2.0"
         const val browser = "1.2.0"
         const val cardview = "1.0.0"
-        const val constraintlayout = "1.1.3"
+        const val constraintlayout = "2.0.0"
         const val core = "1.2.0"
         const val fragment = "1.1.0"
         const val recyclerview = "1.0.0"
@@ -67,7 +67,7 @@ object Versions {
 // Synchronized dependencies used by (some) modules
 @Suppress("Unused", "MaxLineLength")
 object Dependencies {
-    const val kotlin_stdlib = "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${Versions.kotlin}"
+    const val kotlin_stdlib = "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}"
     const val kotlin_coroutines = "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}"
     const val kotlin_reflect = "org.jetbrains.kotlin:kotlin-reflect:${Versions.kotlin}"
 
