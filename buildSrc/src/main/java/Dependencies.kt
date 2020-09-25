@@ -31,7 +31,7 @@ object Versions {
 
     const val mozilla_glean = "32.1.1"
 
-    const val material = "1.2.0"
+    const val material = "1.2.1"
     const val nearby = "17.0.0"
 
     object AndroidX {
