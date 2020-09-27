@@ -27,9 +27,9 @@ object Versions {
     const val disklrucache = "2.0.2"
     const val leakcanary = "2.4"
 
-    const val mozilla_appservices = "61.0.13"
+    const val mozilla_appservices = "63.0.0"
 
-    const val mozilla_glean = "32.1.1"
+    const val mozilla_glean = "32.4.0"
 
     const val material = "1.2.1"
     const val nearby = "17.0.0"
@@ -156,6 +156,5 @@ object Dependencies {
     const val thirdparty_jna = "net.java.dev.jna:jna:${Versions.jna}@jar"
     const val thirdparty_disklrucache = "com.jakewharton:disklrucache:${Versions.disklrucache}"
 
-    const val firebase_core = "com.google.firebase:firebase-core:${Versions.Firebase.core}"
     const val firebase_messaging = "com.google.firebase:firebase-messaging:${Versions.Firebase.messaging}"
 }

@@ -5,11 +5,16 @@
 package mozilla.components.browser.session.ext
 
 import android.util.AtomicFile
+import android.util.JsonWriter
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import mozilla.components.browser.session.Session
 import mozilla.components.browser.session.SessionManager
+import mozilla.components.browser.session.storage.BrowserStateSerializer
 import mozilla.components.browser.session.storage.SnapshotSerializer
 import mozilla.components.browser.session.storage.getFileForEngine
+import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.state.EngineState
+import mozilla.components.browser.state.state.createTab
 import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.EngineSessionState
@@ -21,6 +26,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.doThrow
@@ -40,14 +46,11 @@ class AtomicFileKtTest {
         val file: AtomicFile = mock()
         doThrow(IOException::class.java).`when`(file).startWrite()
 
-        val snapshot = SessionManager.Snapshot(
-            sessions = listOf(
-                SessionManager.Snapshot.Item(Session("http://mozilla.org"))
-            ),
-            selectedSessionIndex = 0
+        val state = BrowserState(
+            tabs = listOf(createTab("http://mozilla.org"))
         )
 
-        file.writeSnapshot(snapshot, SnapshotSerializer())
+        file.writeState(state, BrowserStateSerializer())
 
         verify(file).failWrite(any())
     }
@@ -82,31 +85,33 @@ class AtomicFileKtTest {
 
         val engineSessionState = object : EngineSessionState {
             override fun toJSON() = JSONObject()
+            override fun writeTo(writer: JsonWriter) {
+                writer.beginObject()
+                writer.endObject()
+            }
         }
-
-        val engineSession = mock(EngineSession::class.java)
-        `when`(engineSession.saveState()).thenReturn(engineSessionState)
 
         val engine = mock(Engine::class.java)
         `when`(engine.name()).thenReturn("gecko")
-        `when`(engine.createSession()).thenReturn(mock(EngineSession::class.java))
         `when`(engine.createSessionState(any())).thenReturn(engineSessionState)
-
-        // Engine session just for one of the sessions for simplicity.
-        val sessionsSnapshot = SessionManager.Snapshot(
-            sessions = listOf(
-                SessionManager.Snapshot.Item(session1),
-                SessionManager.Snapshot.Item(session2),
-                SessionManager.Snapshot.Item(session3)
-            ),
-            selectedSessionIndex = 0
-        )
 
         val file = AtomicFile(File.createTempFile(
             UUID.randomUUID().toString(),
             UUID.randomUUID().toString()))
 
-        file.writeSnapshot(sessionsSnapshot)
+        val state = BrowserState(tabs = listOf(
+                session1.toTabSessionState().copy(
+                    engineState = EngineState(
+                        engineSessionState = engineSessionState
+                    )
+                ),
+                session2.toTabSessionState(),
+                session3.toTabSessionState()
+            ),
+            selectedTabId = session1.id
+        )
+
+        assertTrue(file.writeState(state))
 
         // Read it back
         val restoredSnapshot = file.readSnapshot(engine)
@@ -185,16 +190,17 @@ class AtomicFileKtTest {
     private fun writeSnapshotItem(engine: Engine, session: Session): AtomicFile {
         val engineSessionState = object : EngineSessionState {
             override fun toJSON() = JSONObject()
+            override fun writeTo(writer: JsonWriter) {
+                writer.beginObject()
+                writer.endObject()
+            }
         }
-
-        val engineSession = mock(EngineSession::class.java)
-        `when`(engineSession.saveState()).thenReturn(engineSessionState)
 
         `when`(engine.name()).thenReturn("gecko")
         `when`(engine.createSession()).thenReturn(mock(EngineSession::class.java))
         `when`(engine.createSessionState(any())).thenReturn(engineSessionState)
 
-        val item = SessionManager.Snapshot.Item(session, engineSession)
+        val item = SessionManager.Snapshot.Item(session, engineSessionState)
 
         val file = AtomicFile(File.createTempFile(
                 UUID.randomUUID().toString(),

@@ -8,9 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mozilla.components.browser.storage.sync.PlacesHistoryStorage
-import mozilla.components.feature.top.sites.ext.toTopSite
 import mozilla.components.feature.top.sites.TopSite.Type.FRECENT
 import mozilla.components.feature.top.sites.ext.hasUrl
+import mozilla.components.feature.top.sites.ext.toTopSite
 import mozilla.components.support.base.observer.Observable
 import mozilla.components.support.base.observer.ObserverRegistry
 import kotlin.coroutines.CoroutineContext
@@ -39,9 +39,7 @@ class DefaultTopSitesStorage(
     init {
         if (defaultTopSites.isNotEmpty()) {
             scope.launch {
-                defaultTopSites.forEach { (title, url) ->
-                    addTopSite(title, url, isDefault = true)
-                }
+                pinnedSitesStorage.addAllPinnedSites(defaultTopSites, isDefault = true)
             }
         }
     }
@@ -55,13 +53,15 @@ class DefaultTopSitesStorage(
 
     override fun removeTopSite(topSite: TopSite) {
         scope.launch {
-            if (topSite.type == FRECENT) {
-                historyStorage.deleteVisitsFor(topSite.url)
-                notifyObservers { onStorageUpdated() }
-            } else {
+            if (topSite.type != FRECENT) {
                 pinnedSitesStorage.removePinnedSite(topSite)
-                notifyObservers { onStorageUpdated() }
             }
+
+            // Remove the top site from both history and pinned sites storage to avoid having it
+            // show up as a frecent site if it is a pinned site.
+            historyStorage.deleteVisitsFor(topSite.url)
+
+            notifyObservers { onStorageUpdated() }
         }
     }
 
@@ -75,10 +75,10 @@ class DefaultTopSitesStorage(
         topSites.addAll(pinnedSites)
 
         if (includeFrecent && numSitesRequired > 0) {
-            // Get twice the required size to buffer for duplicate entries with
+            // Get 'totalSites' sites for duplicate entries with
             // existing pinned sites
             val frecentSites = historyStorage
-                .getTopFrecentSites(numSitesRequired * 2)
+                .getTopFrecentSites(totalSites)
                 .map { it.toTopSite() }
                 .filter { !pinnedSites.hasUrl(it.url) }
                 .take(numSitesRequired)

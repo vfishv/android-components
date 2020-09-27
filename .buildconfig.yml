@@ -1,8 +1,12 @@
-componentsVersion: 57.0.0
+componentsVersion: 61.0.0
 projects:
   concept-awesomebar:
     path: components/concept/awesomebar
     description: 'An abstract definition of an awesomebar component.'
+    publish: true
+  concept-base:
+    path: components/concept/base
+    description: 'A component for basic interfaces needed by multiple components and that do not warrant a standalone component.'
     publish: true
   concept-fetch:
     path: components/concept/fetch
@@ -103,6 +107,10 @@ projects:
   feature-tab-collections:
     path: components/feature/tab-collections
     description: 'Feature implementation for saving, restoring and organizing collections of tabs.'
+    publish: true
+  feature-recentlyclosed:
+    path: components/feature/recentlyclosed
+    description: 'Feature implementation for saving and restoring recently closed tabs'
     publish: true
   feature-toolbar:
     path: components/feature/toolbar
@@ -291,10 +299,6 @@ projects:
   service-pocket:
     path: components/service/pocket
     description: 'A library to communicate with the Pocket API'
-    publish: true
-  service-telemetry:
-    path: components/service/telemetry
-    description: 'A generic library for generating and sending telemetry pings from Android applications to the Mozilla telemetry service.'
     publish: true
   support-base:
     path: components/support/base

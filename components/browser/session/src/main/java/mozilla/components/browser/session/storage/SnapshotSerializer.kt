@@ -14,6 +14,7 @@ import mozilla.components.support.ktx.android.org.json.tryGetString
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.lang.IllegalStateException
 import java.util.UUID
 
 // Current version of the format used.
@@ -47,6 +48,10 @@ class SnapshotSerializer(
         return json.toString()
     }
 
+    /**
+     * Turns a [SessionManager.Snapshot.Item] into a [JSONObject] for writing to disk.
+     */
+    @Suppress("DEPRECATION")
     fun itemToJSON(item: SessionManager.Snapshot.Item): JSONObject {
         val itemJson = JSONObject()
 
@@ -55,14 +60,12 @@ class SnapshotSerializer(
         if (item.readerState?.active == true && item.readerState.activeUrl != null) {
             sessionJson.put(Keys.SESSION_READER_MODE_ACTIVE_URL_KEY, item.readerState.activeUrl)
         }
+        sessionJson.put(Keys.SESSION_LAST_ACCESS, item.lastAccess)
         itemJson.put(Keys.SESSION_KEY, sessionJson)
 
-        val engineSessionState = if (item.engineSessionState != null) {
-            item.engineSessionState.toJSON()
-        } else {
-            item.engineSession?.saveState()?.toJSON() ?: JSONObject()
-        }
+        val engineSessionState = item.engineSessionState?.toJSON() ?: JSONObject()
         itemJson.put(Keys.ENGINE_SESSION_KEY, engineSessionState)
+
         return itemJson
     }
 
@@ -70,12 +73,24 @@ class SnapshotSerializer(
         val tuples: MutableList<SessionManager.Snapshot.Item> = mutableListOf()
 
         val jsonRoot = JSONObject(json)
-        val selectedSessionIndex = jsonRoot.getInt(Keys.SELECTED_SESSION_INDEX_KEY)
+
+        val version = jsonRoot.getInt(Keys.VERSION_KEY)
 
         val sessionStateTuples = jsonRoot.getJSONArray(Keys.SESSION_STATE_TUPLES_KEY)
         for (i in 0 until sessionStateTuples.length()) {
             val sessionStateTupleJson = sessionStateTuples.getJSONObject(i)
             tuples.add(itemFromJSON(engine, sessionStateTupleJson))
+        }
+
+        val selectedSessionIndex = when (version) {
+            1 -> jsonRoot.getInt(Keys.SELECTED_SESSION_INDEX_KEY)
+            2 -> {
+                val selectedTabId = jsonRoot.getString(Keys.SELECTED_TAB_ID_KEY)
+                tuples.indexOfFirst { it.session.id == selectedTabId }
+            }
+            else -> {
+                throw IllegalStateException("Unknown session store format version ($version")
+            }
         }
 
         return SessionManager.Snapshot(
@@ -92,13 +107,14 @@ class SnapshotSerializer(
             active = sessionJson.optBoolean(Keys.SESSION_READER_MODE_KEY, false),
             activeUrl = sessionJson.tryGetString(Keys.SESSION_READER_MODE_ACTIVE_URL_KEY)
         )
+        val lastAccess = sessionJson.optLong(Keys.SESSION_LAST_ACCESS, 0)
         val engineState = engine.createSessionState(engineSessionJson)
 
         return SessionManager.Snapshot.Item(
             session,
-            engineSession = null,
             engineSessionState = engineState,
-            readerState = readerState
+            readerState = readerState,
+            lastAccess = lastAccess
         )
     }
 }
@@ -141,8 +157,9 @@ internal fun deserializeSession(
     return session
 }
 
-private object Keys {
+internal object Keys {
     const val SELECTED_SESSION_INDEX_KEY = "selectedSessionIndex"
+    const val SELECTED_TAB_ID_KEY = "selectedTabId"
     const val SESSION_STATE_TUPLES_KEY = "sessionStateTuples"
 
     const val SESSION_URL_KEY = "url"
@@ -152,6 +169,7 @@ private object Keys {
     const val SESSION_READER_MODE_KEY = "readerMode"
     const val SESSION_READER_MODE_ACTIVE_URL_KEY = "readerModeArticleUrl"
     const val SESSION_TITLE = "title"
+    const val SESSION_LAST_ACCESS = "lastAccess"
 
     const val SESSION_KEY = "session"
     const val ENGINE_SESSION_KEY = "engineSession"

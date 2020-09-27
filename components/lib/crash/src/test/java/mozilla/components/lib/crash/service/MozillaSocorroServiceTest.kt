@@ -7,7 +7,7 @@ package mozilla.components.lib.crash.service
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.io.Resources.getResource
 import mozilla.components.lib.crash.Crash
-import mozilla.components.support.base.crash.Breadcrumb
+import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.support.test.any
 import mozilla.components.support.test.robolectric.testContext
 import okhttp3.mockwebserver.MockResponse
@@ -18,6 +18,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.never
 import org.mockito.Mockito.spy
@@ -37,13 +38,13 @@ class MozillaSocorroServiceTest {
             testContext,
             "Test App"
         ))
-        doReturn("").`when`(service).sendReport(any(), any(), any(), anyBoolean(), anyBoolean(), any())
+        doReturn("").`when`(service).sendReport(anyLong(), any(), any(), any(), anyBoolean(), anyBoolean(), any())
 
-        val crash = Crash.NativeCodeCrash("", true, "", false, arrayListOf())
+        val crash = Crash.NativeCodeCrash(123, "", true, "", false, arrayListOf())
         service.report(crash)
 
         verify(service).report(crash)
-        verify(service).sendReport(null, crash.minidumpPath, crash.extrasPath, true, false, crash.breadcrumbs)
+        verify(service).sendReport(123, null, crash.minidumpPath, crash.extrasPath, true, false, crash.breadcrumbs)
     }
 
     @Test
@@ -65,13 +66,13 @@ class MozillaSocorroServiceTest {
             testContext,
             "Test App"
         ))
-        doReturn("").`when`(service).sendReport(any(), any(), any(), anyBoolean(), anyBoolean(), any())
+        doReturn("").`when`(service).sendReport(anyLong(), any(), any(), any(), anyBoolean(), anyBoolean(), any())
 
-        val crash = Crash.UncaughtExceptionCrash(RuntimeException("Test"), arrayListOf())
+        val crash = Crash.UncaughtExceptionCrash(123, RuntimeException("Test"), arrayListOf())
         service.report(crash)
 
         verify(service).report(crash)
-        verify(service).sendReport(crash.throwable, null, null, false, true, crash.breadcrumbs)
+        verify(service).sendReport(123, crash.throwable, null, null, false, true, crash.breadcrumbs)
     }
 
     @Test
@@ -80,13 +81,13 @@ class MozillaSocorroServiceTest {
                 testContext,
                 "Test App"
         ))
-        doReturn("").`when`(service).sendReport(any(), any(), any(), anyBoolean(), anyBoolean(), any())
+        doReturn("").`when`(service).sendReport(anyLong(), any(), any(), any(), anyBoolean(), anyBoolean(), any())
         val throwable = RuntimeException("Test")
         val breadcrumbs: ArrayList<Breadcrumb> = arrayListOf()
         val id = service.report(throwable, breadcrumbs)
 
         verify(service).report(throwable, breadcrumbs)
-        verify(service, never()).sendReport(any(), any(), any(), anyBoolean(), anyBoolean(), any())
+        verify(service, never()).sendReport(anyLong(), any(), any(), any(), anyBoolean(), anyBoolean(), any())
         assertNull(id)
     }
 
@@ -111,6 +112,7 @@ class MozillaSocorroServiceTest {
             )
 
             val crash = Crash.NativeCodeCrash(
+                123456,
                 "dump.path",
                 true,
                 "extras.path",
@@ -133,9 +135,73 @@ class MozillaSocorroServiceTest {
             assert(request.contains("name=Android_PackageName\r\n\r\nmozilla.components.lib.crash.test"))
             assert(request.contains("name=Android_Device\r\n\r\nrobolectric"))
             assert(request.contains("name=CrashType\r\n\r\n$FATAL_NATIVE_CRASH_TYPE"))
+            assert(request.contains("name=CrashTime\r\n\r\n123"))
 
             verify(service).report(crash)
-            verify(service).sendReport(null, "dump.path", "extras.path", true, true, crash.breadcrumbs)
+            verify(service).sendReport(123456, null, "dump.path", "extras.path", true, true, crash.breadcrumbs)
+        } finally {
+            mockWebServer.shutdown()
+        }
+    }
+
+    @Test
+    fun `MozillaSocorroService parameters is reported correctly`() {
+        val mockWebServer = MockWebServer()
+
+        try {
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody("CrashID=bp-924121d3-4de3-4b32-ab12-026fc0190928")
+            )
+            mockWebServer.start()
+            val serverUrl = mockWebServer.url("/")
+            val service = spy(
+                MozillaSocorroService(
+                    testContext,
+                    "Test App",
+                    appId = "{aa3c5121-dab2-40e2-81ca-7ea25febc110}",
+                    version = "test version",
+                    buildId = "test build id",
+                    vendor = "test vendor",
+                    serverUrl = serverUrl.toString(),
+                    versionName = "1.0.1",
+                    versionCode = "1000",
+                    releaseChannel = "test channel"
+                )
+            )
+
+            val crash = Crash.NativeCodeCrash(
+                123456,
+                "dump.path",
+                true,
+                "extras.path",
+                isFatal = true,
+                breadcrumbs = arrayListOf()
+            )
+            service.report(crash)
+
+            val fileInputStream =
+                ByteArrayInputStream(mockWebServer.takeRequest().body.inputStream().readBytes())
+            val inputStream = GZIPInputStream(fileInputStream)
+            val reader = InputStreamReader(inputStream)
+            val bufferedReader = BufferedReader(reader)
+            val request = bufferedReader.readText()
+
+            assert(request.contains("name=Android_ProcessName\r\n\r\nmozilla.components.lib.crash.test"))
+            assert(request.contains("name=ProductID\r\n\r\n{aa3c5121-dab2-40e2-81ca-7ea25febc110}"))
+            assert(request.contains("name=Vendor\r\n\r\ntest vendor"))
+            assert(request.contains("name=ReleaseChannel\r\n\r\ntest channel"))
+            assert(request.contains("name=Android_PackageName\r\n\r\nmozilla.components.lib.crash.test"))
+            assert(request.contains("name=Android_Device\r\n\r\nrobolectric"))
+            assert(request.contains("name=CrashType\r\n\r\n$FATAL_NATIVE_CRASH_TYPE"))
+            assert(request.contains("name=CrashTime\r\n\r\n123"))
+            assert(request.contains("name=GeckoViewVersion\r\n\r\ntest version"))
+            assert(request.contains("name=BuildID\r\n\r\ntest build id"))
+            assert(request.contains("name=Version\r\n\r\n1.0.1"))
+            assert(request.contains("name=ApplicationBuildID\r\n\r\n1000"))
+
+            verify(service).report(crash)
+            verify(service).sendReport(123456, null, "dump.path", "extras.path", true, true, crash.breadcrumbs)
         } finally {
             mockWebServer.shutdown()
         }
@@ -162,6 +228,7 @@ class MozillaSocorroServiceTest {
             )
 
             val crash = Crash.NativeCodeCrash(
+                123456,
                 "dump.path",
                 true,
                 "extras.path",
@@ -184,9 +251,10 @@ class MozillaSocorroServiceTest {
             assert(request.contains("name=Android_PackageName\r\n\r\nmozilla.components.lib.crash.test"))
             assert(request.contains("name=Android_Device\r\n\r\nrobolectric"))
             assert(request.contains("name=CrashType\r\n\r\n$NON_FATAL_NATIVE_CRASH_TYPE"))
+            assert(request.contains("name=CrashTime\r\n\r\n123"))
 
             verify(service).report(crash)
-            verify(service).sendReport(null, "dump.path", "extras.path", true, false, crash.breadcrumbs)
+            verify(service).sendReport(123456, null, "dump.path", "extras.path", true, false, crash.breadcrumbs)
         } finally {
             mockWebServer.shutdown()
         }
@@ -212,7 +280,7 @@ class MozillaSocorroServiceTest {
                 )
             )
 
-            val crash = Crash.UncaughtExceptionCrash(RuntimeException("Test"), arrayListOf())
+            val crash = Crash.UncaughtExceptionCrash(123456, RuntimeException("Test"), arrayListOf())
             service.report(crash)
 
             val fileInputStream =
@@ -230,9 +298,10 @@ class MozillaSocorroServiceTest {
             assert(request.contains("name=Android_PackageName\r\n\r\nmozilla.components.lib.crash.test"))
             assert(request.contains("name=Android_Device\r\n\r\nrobolectric"))
             assert(request.contains("name=CrashType\r\n\r\n$UNCAUGHT_EXCEPTION_TYPE"))
+            assert(request.contains("name=CrashTime\r\n\r\n123"))
 
             verify(service).report(crash)
-            verify(service).sendReport(crash.throwable, null, null, false, true, crash.breadcrumbs)
+            verify(service).sendReport(123456, crash.throwable, null, null, false, true, crash.breadcrumbs)
         } finally {
             mockWebServer.shutdown()
         }
@@ -257,12 +326,12 @@ class MozillaSocorroServiceTest {
                 )
             )
 
-            val crash = Crash.UncaughtExceptionCrash(RuntimeException("Test"), arrayListOf())
+            val crash = Crash.UncaughtExceptionCrash(123, RuntimeException("Test"), arrayListOf())
             service.report(crash)
 
             mockWebServer.shutdown()
             verify(service).report(crash)
-            verify(service).sendReport(crash.throwable, null, null, false, true, crash.breadcrumbs)
+            verify(service).sendReport(123, crash.throwable, null, null, false, true, crash.breadcrumbs)
         } finally {
             mockWebServer.shutdown()
         }
@@ -284,12 +353,12 @@ class MozillaSocorroServiceTest {
                 )
             )
 
-            val crash = Crash.NativeCodeCrash(null, true, null, false, arrayListOf())
+            val crash = Crash.NativeCodeCrash(123, null, true, null, false, arrayListOf())
             service.report(crash)
             mockWebServer.shutdown()
 
             verify(service).report(crash)
-            verify(service).sendReport(null, crash.minidumpPath, crash.extrasPath, true, false, crash.breadcrumbs)
+            verify(service).sendReport(123, null, crash.minidumpPath, crash.extrasPath, true, false, crash.breadcrumbs)
         } finally {
             mockWebServer.shutdown()
         }
@@ -428,10 +497,12 @@ class MozillaSocorroServiceTest {
                 "Mozilla Test",
                 mockWebServer.url("/").toString(),
                 "0.0.1",
+                "123",
                 "test channel"
             )
 
             val crash = Crash.NativeCodeCrash(
+                0,
                 "dump.path",
                 true,
                 "extras.path",

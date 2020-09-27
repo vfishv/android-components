@@ -36,8 +36,9 @@ class ExceptionHandler(
             crashReporter.onCrash(
                 context,
                 Crash.UncaughtExceptionCrash(
+                    timestamp = System.currentTimeMillis(),
                     throwable = throwable,
-                    breadcrumbs = crashReporter.crashBreadcrumbs.toSortedArrayList()
+                    breadcrumbs = crashReporter.crashBreadcrumbsCopy()
                 )
             )
 

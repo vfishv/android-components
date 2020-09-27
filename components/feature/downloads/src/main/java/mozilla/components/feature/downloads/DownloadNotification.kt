@@ -81,7 +81,7 @@ internal object DownloadNotification {
         val downloadState = downloadJobState.state
         val bytesCopied = downloadJobState.currentBytesCopied
         val channelId = ensureChannelExists(context)
-        val isIndeterminate = downloadState.contentLength == null
+        val isIndeterminate = downloadJobState.isIndeterminate()
 
         return NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.mozac_feature_download_ic_ongoing_download)
@@ -216,7 +216,7 @@ internal object DownloadNotification {
         return NOTIFICATION_CHANNEL_ID
     }
 
-    private fun getPauseAction(context: Context, downloadStateId: Long): NotificationCompat.Action {
+    private fun getPauseAction(context: Context, downloadStateId: String): NotificationCompat.Action {
         val pauseIntent = createPendingIntent(context, ACTION_PAUSE, downloadStateId)
 
         return NotificationCompat.Action.Builder(
@@ -226,7 +226,7 @@ internal object DownloadNotification {
         ).build()
     }
 
-    private fun getResumeAction(context: Context, downloadStateId: Long): NotificationCompat.Action {
+    private fun getResumeAction(context: Context, downloadStateId: String): NotificationCompat.Action {
         val resumeIntent = createPendingIntent(context, ACTION_RESUME, downloadStateId)
 
         return NotificationCompat.Action.Builder(
@@ -236,7 +236,7 @@ internal object DownloadNotification {
         ).build()
     }
 
-    private fun getCancelAction(context: Context, downloadStateId: Long): NotificationCompat.Action {
+    private fun getCancelAction(context: Context, downloadStateId: String): NotificationCompat.Action {
         val cancelIntent = createPendingIntent(context, ACTION_CANCEL, downloadStateId)
 
         return NotificationCompat.Action.Builder(
@@ -246,7 +246,7 @@ internal object DownloadNotification {
         ).build()
     }
 
-    private fun getTryAgainAction(context: Context, downloadStateId: Long): NotificationCompat.Action {
+    private fun getTryAgainAction(context: Context, downloadStateId: String): NotificationCompat.Action {
         val tryAgainIntent = createPendingIntent(context, ACTION_TRY_AGAIN, downloadStateId)
 
         return NotificationCompat.Action.Builder(
@@ -256,11 +256,11 @@ internal object DownloadNotification {
         ).build()
     }
 
-    private fun createDismissPendingIntent(context: Context, downloadStateId: Long): PendingIntent {
+    private fun createDismissPendingIntent(context: Context, downloadStateId: String): PendingIntent {
         return createPendingIntent(context, ACTION_DISMISS, downloadStateId)
     }
 
-    private fun createPendingIntent(context: Context, action: String, downloadStateId: Long): PendingIntent {
+    private fun createPendingIntent(context: Context, action: String, downloadStateId: String): PendingIntent {
         val intent = Intent(action)
         intent.setPackage(context.applicationContext.packageName)
         intent.putExtra(EXTRA_DOWNLOAD_ID, downloadStateId)
@@ -281,12 +281,16 @@ internal fun NotificationCompat.Builder.setCompatGroup(groupKey: String): Notifi
 @VisibleForTesting
 internal fun DownloadJobState.getProgress(): String {
     val bytesCopied = currentBytesCopied
-    val isIndeterminate = state.contentLength == null || bytesCopied == 0L
-    return if (isIndeterminate) {
+    return if (isIndeterminate()) {
         ""
     } else {
         "${DownloadNotification.PERCENTAGE_MULTIPLIER * bytesCopied / state.contentLength!!}%"
     }
+}
+
+private fun DownloadJobState.isIndeterminate(): Boolean {
+    val bytesCopied = currentBytesCopied
+    return state.contentLength == null || bytesCopied == 0L || state.contentLength == 0L
 }
 
 @VisibleForTesting

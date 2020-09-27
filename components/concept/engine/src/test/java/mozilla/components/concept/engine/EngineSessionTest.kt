@@ -540,6 +540,7 @@ class EngineSessionTest {
                 contentLength = 1927392,
                 contentType = "application/vnd.android.package-archive",
                 cookie = "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;",
+                isPrivate = true,
                 userAgent = "Components/1.0")
         }
 
@@ -549,6 +550,7 @@ class EngineSessionTest {
             contentLength = 1927392,
             contentType = "application/vnd.android.package-archive",
             cookie = "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;",
+            isPrivate = true,
             userAgent = "Components/1.0"
         )
     }
@@ -818,8 +820,6 @@ open class DummyEngineSession : EngineSession() {
 
     override fun restoreState(state: EngineSessionState): Boolean { return false }
 
-    override fun saveState(): EngineSessionState { return mock() }
-
     override fun loadUrl(
         url: String,
         parent: EngineSession?,
@@ -852,10 +852,6 @@ open class DummyEngineSession : EngineSession() {
     override fun clearFindMatches() {}
 
     override fun exitFullScreenMode() {}
-
-    override fun recoverFromCrash(): Boolean {
-        return false
-    }
 
     // Helper method to access the protected method from test cases.
     fun notifyInternalObservers(block: Observer.() -> Unit) {

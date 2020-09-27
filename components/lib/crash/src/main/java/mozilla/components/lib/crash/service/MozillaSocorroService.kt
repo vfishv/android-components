@@ -10,8 +10,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.annotation.VisibleForTesting
+import androidx.core.content.pm.PackageInfoCompat
 import mozilla.components.lib.crash.Crash
-import mozilla.components.support.base.crash.Breadcrumb
+import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.support.base.log.logger.Logger
 import org.json.JSONArray
 import org.json.JSONException
@@ -45,6 +46,7 @@ internal const val FATAL_NATIVE_CRASH_TYPE = "fatal native crash"
 internal const val NON_FATAL_NATIVE_CRASH_TYPE = "non-fatal native crash"
 
 internal const val DEFAULT_VERSION_NAME = "N/A"
+internal const val DEFAULT_VERSION_CODE = "N/A"
 
 private const val KEY_CRASH_ID = "CrashID"
 
@@ -62,6 +64,8 @@ private const val KEY_CRASH_ID = "CrashID"
  * @param vendor The application vendor name.
  * @param serverUrl The URL of the server.
  * @param versionName The version of the application.
+ * @param versionCode The version code of the application.
+ * @param releaseChannel The release channel of the application.
  */
 @Suppress("TooManyFunctions", "LargeClass", "LongParameterList")
 class MozillaSocorroService(
@@ -74,6 +78,7 @@ class MozillaSocorroService(
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal var serverUrl: String? = null,
     private var versionName: String = DEFAULT_VERSION_NAME,
+    private var versionCode: String = DEFAULT_VERSION_CODE,
     private val releaseChannel: String = BuildConfig.MOZ_UPDATE_CHANNEL
 ) : CrashReporterService {
     private val logger = Logger("mozac/MozillaSocorroCrashHelperService")
@@ -89,14 +94,28 @@ class MozillaSocorroService(
     }
 
     init {
-        if (versionName == DEFAULT_VERSION_NAME) {
-            try {
-                versionName = applicationContext.packageManager
-                    .getPackageInfo(applicationContext.packageName, 0).versionName
-            } catch (e: PackageManager.NameNotFoundException) {
-                logger.error("package name not found, failed to get application version")
-            } catch (e: IllegalStateException) {
-                logger.error("failed to get application version")
+        val packageInfo = try {
+            applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0)
+        } catch (e: PackageManager.NameNotFoundException) {
+            logger.error("package name not found, failed to get application version")
+            null
+        }
+
+        packageInfo?.let {
+            if (versionName == DEFAULT_VERSION_NAME) {
+                try {
+                    versionName = packageInfo.versionName
+                } catch (e: IllegalStateException) {
+                    logger.error("failed to get application version")
+                }
+            }
+
+            if (versionCode == DEFAULT_VERSION_CODE) {
+                try {
+                    versionCode = PackageInfoCompat.getLongVersionCode(packageInfo).toString()
+                } catch (e: IllegalStateException) {
+                    logger.error("failed to get application version code")
+                }
             }
         }
 
@@ -112,6 +131,7 @@ class MozillaSocorroService(
 
     override fun report(crash: Crash.UncaughtExceptionCrash): String? {
         return sendReport(
+            crash.timestamp,
             crash.throwable,
             miniDumpFilePath = null,
             extrasFilePath = null,
@@ -123,6 +143,7 @@ class MozillaSocorroService(
 
     override fun report(crash: Crash.NativeCodeCrash): String? {
         return sendReport(
+            crash.timestamp,
             throwable = null,
             miniDumpFilePath = crash.minidumpPath,
             extrasFilePath = crash.extrasPath,
@@ -140,6 +161,7 @@ class MozillaSocorroService(
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     @Suppress("LongParameterList")
     internal fun sendReport(
+        timestamp: Long,
         throwable: Throwable?,
         miniDumpFilePath: String?,
         extrasFilePath: String?,
@@ -163,7 +185,7 @@ class MozillaSocorroService(
             conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             conn.setRequestProperty("Content-Encoding", "gzip")
 
-            sendCrashData(conn.outputStream, boundary, throwable, miniDumpFilePath, extrasFilePath,
+            sendCrashData(conn.outputStream, boundary, timestamp, throwable, miniDumpFilePath, extrasFilePath,
                     isNativeCodeCrash, isFatalCrash, breadcrumbsJson.toString())
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
@@ -211,6 +233,7 @@ class MozillaSocorroService(
     private fun sendCrashData(
         os: OutputStream,
         boundary: String,
+        timestamp: Long,
         throwable: Throwable?,
         miniDumpFilePath: String?,
         extrasFilePath: String?,
@@ -223,6 +246,7 @@ class MozillaSocorroService(
         sendPart(gzipOs, boundary, "ProductName", appName, nameSet)
         sendPart(gzipOs, boundary, "ProductID", appId, nameSet)
         sendPart(gzipOs, boundary, "Version", versionName, nameSet)
+        sendPart(gzipOs, boundary, "ApplicationBuildID", versionCode, nameSet)
         sendPart(gzipOs, boundary, "AndroidComponentVersion", AcBuild.version, nameSet)
         sendPart(gzipOs, boundary, "GleanVersion", AcBuild.gleanSdkVersion, nameSet)
         sendPart(gzipOs, boundary, "ApplicationServicesVersion", AcBuild.applicationServicesVersion, nameSet)
@@ -268,7 +292,7 @@ class MozillaSocorroService(
         sendPart(gzipOs, boundary, "StartupTime",
                 TimeUnit.MILLISECONDS.toSeconds(startTime).toString(), nameSet)
         sendPart(gzipOs, boundary, "CrashTime",
-                TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()).toString(), nameSet)
+                TimeUnit.MILLISECONDS.toSeconds(timestamp).toString(), nameSet)
         sendPart(gzipOs, boundary, "Android_PackageName", applicationContext.packageName, nameSet)
         sendPart(gzipOs, boundary, "Android_Manufacturer", Build.MANUFACTURER, nameSet)
         sendPart(gzipOs, boundary, "Android_Model", Build.MODEL, nameSet)

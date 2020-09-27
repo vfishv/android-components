@@ -10,6 +10,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import mozilla.appservices.Megazord
 import mozilla.components.browser.session.Session
+import mozilla.components.browser.state.action.SystemAction
 import mozilla.components.concept.fetch.Client
 import mozilla.components.feature.addons.update.GlobalAddonDependencyProvider
 import mozilla.components.lib.fetch.httpurlconnection.HttpURLConnectionClient
@@ -39,6 +40,8 @@ class SampleApplication : Application() {
 
         Log.addSink(AndroidLogSink())
 
+        components.crashReporter.install(this)
+
         if (!isMainProcess()) {
             return
         }
@@ -57,7 +60,7 @@ class SampleApplication : Application() {
         GlobalScope.launch(Dispatchers.IO) {
             components.webAppManifestStorage.warmUpScopes(System.currentTimeMillis())
         }
-
+        components.downloadsUseCases.restoreDownloads()
         try {
             GlobalAddonDependencyProvider.initialize(
                 components.addonManager,
@@ -98,7 +101,8 @@ class SampleApplication : Application() {
         logger.debug("onTrimMemory: $level")
 
         runOnlyInMainProcess {
-            components.sessionManager.onTrimMemory(level)
+            components.store.dispatch(SystemAction.LowMemoryAction(level))
+
             components.icons.onTrimMemory(level)
         }
     }

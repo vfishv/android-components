@@ -10,6 +10,7 @@ import android.app.Activity.RESULT_OK
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -23,6 +24,7 @@ import kotlinx.coroutines.test.setMain
 import mozilla.components.browser.state.action.ContentAction
 import mozilla.components.browser.state.action.TabListAction
 import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.state.ContentState
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.state.createCustomTab
 import mozilla.components.browser.state.state.createTab
@@ -45,6 +47,7 @@ import mozilla.components.feature.prompts.dialog.MultiButtonDialogFragment
 import mozilla.components.feature.prompts.dialog.PromptDialogFragment
 import mozilla.components.feature.prompts.dialog.SaveLoginDialogFragment
 import mozilla.components.feature.prompts.file.FilePicker.Companion.FILE_PICKER_ACTIVITY_REQUEST_CODE
+import mozilla.components.feature.prompts.login.LoginPicker
 import mozilla.components.feature.prompts.share.ShareDelegate
 import mozilla.components.support.test.any
 import mozilla.components.support.test.eq
@@ -61,6 +64,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.never
 import org.mockito.Mockito.spy
@@ -77,6 +81,7 @@ class PromptFeatureTest {
 
     private lateinit var store: BrowserStore
     private lateinit var fragmentManager: FragmentManager
+    private lateinit var loginPicker: LoginPicker
 
     private val tabId = "test-tab"
     private fun tab(): TabSessionState? {
@@ -98,6 +103,7 @@ class PromptFeatureTest {
                 selectedTabId = tabId
             )
         )
+        loginPicker = mock()
         fragmentManager = mockFragmentManager()
     }
 
@@ -938,6 +944,30 @@ class PromptFeatureTest {
     }
 
     @Test
+    fun `When page is refreshed login dialog is dismissed`() {
+        val feature =
+            PromptFeature(activity = mock(), store = store, fragmentManager = fragmentManager) { }
+        feature.loginPicker = loginPicker
+        val onLoginDismiss: () -> Unit = {}
+        val onLoginConfirm: (Login) -> Unit = {}
+
+        val login = Login(null, "origin", username = "username", password = "password")
+        val selectLoginRequest =
+            PromptRequest.SelectLoginPrompt(listOf(login), onLoginDismiss, onLoginConfirm)
+
+        feature.start()
+        store.dispatch(ContentAction.UpdatePromptRequestAction(tabId, selectLoginRequest))
+            .joinBlocking()
+
+        verify(loginPicker).handleSelectLoginRequest(selectLoginRequest)
+
+        // Simulate reloading page
+        store.dispatch(ContentAction.UpdateLoadingStateAction(tabId, true)).joinBlocking()
+
+        verify(loginPicker).dismissCurrentLoginSelect(selectLoginRequest)
+    }
+
+    @Test
     fun `Share prompt calls ShareDelegate`() {
         val delegate: ShareDelegate = mock()
         val activity: Activity = mock()
@@ -1025,7 +1055,7 @@ class PromptFeatureTest {
     }
 
     @Test
-    fun `dialog will be dismissed if progress reaches 90%`() {
+    fun `dialog will be dismissed if tab ID changes`() {
         val feature = spy(
             PromptFeature(
                 activity = mock(),
@@ -1047,15 +1077,15 @@ class PromptFeatureTest {
         whenever(fragment.shouldDismissOnLoad()).thenReturn(true)
         feature.activePrompt = WeakReference(fragment)
 
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 0)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 10)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 11)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 28)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 32)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 49)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 60)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 89)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 90)).joinBlocking()
+        val secondTabId = "second-test-tab"
+        store.dispatch(
+            TabListAction.AddTabAction(
+                TabSessionState(
+                    id = secondTabId,
+                    content = ContentState(url = "mozilla.org")
+                ), select = true
+            )
+        ).joinBlocking()
 
         verify(fragment, times(1)).dismiss()
     }
@@ -1091,7 +1121,7 @@ class PromptFeatureTest {
     }
 
     @Test
-    fun `dialog will be dismissed if new page load progress skips past 90%`() {
+    fun `dialog will be dismissed if tab URL changes`() {
         val feature = spy(
             PromptFeature(
                 activity = mock(),
@@ -1113,11 +1143,45 @@ class PromptFeatureTest {
         whenever(fragment.shouldDismissOnLoad()).thenReturn(true)
         feature.activePrompt = WeakReference(fragment)
 
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 0)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 10)).joinBlocking()
-        store.dispatch(ContentAction.UpdateProgressAction(tabId, 100)).joinBlocking()
-
+        store.dispatch(ContentAction.UpdateUrlAction(tabId, "mozilla.org")).joinBlocking()
         verify(fragment, times(1)).dismiss()
+    }
+
+    @Test
+    fun `prompt will always start the save login dialog with an icon`() {
+        val feature = PromptFeature(
+            activity = mock(),
+            store = store,
+            fragmentManager = fragmentManager,
+            shareDelegate = mock(),
+            isSaveLoginEnabled = { true },
+            loginValidationDelegate = mock()
+        ) { }
+        val loginUsername = "username"
+        val loginPassword = "password"
+        val login: Login = mock()
+        `when`(login.username).thenReturn(loginUsername)
+        `when`(login.password).thenReturn(loginPassword)
+        val loginsPrompt = PromptRequest.SaveLoginPrompt(2, listOf(login), { }, { })
+        val websiteIcon: Bitmap = mock()
+        val contentState: ContentState = mock()
+        val session: TabSessionState = mock()
+        val sessionId = "sessionId"
+        `when`(contentState.icon).thenReturn(websiteIcon)
+        `when`(session.content).thenReturn(contentState)
+        `when`(session.id).thenReturn(sessionId)
+
+        feature.handleDialogsRequest(
+            loginsPrompt, session
+        )
+
+        // Only interested in the icon, but it doesn't hurt to be sure we show a properly configured dialog.
+        assertTrue(feature.activePrompt!!.get() is SaveLoginDialogFragment)
+        val dialogFragment = feature.activePrompt!!.get() as SaveLoginDialogFragment
+        assertEquals(loginUsername, dialogFragment.username)
+        assertEquals(loginPassword, dialogFragment.password)
+        assertEquals(websiteIcon, dialogFragment.icon)
+        assertEquals(sessionId, dialogFragment.sessionId)
     }
 
     @Test

@@ -27,8 +27,9 @@ import mozilla.components.browser.menu.item.SimpleBrowserMenuItem
 import mozilla.components.browser.search.SearchEngineManager
 import mozilla.components.browser.session.Session
 import mozilla.components.browser.session.SessionManager
+import mozilla.components.browser.session.engine.EngineMiddleware
 import mozilla.components.browser.session.storage.SessionStorage
-import mozilla.components.browser.session.usecases.EngineSessionUseCases
+import mozilla.components.browser.session.undo.UndoMiddleware
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.storage.sync.PlacesHistoryStorage
 import mozilla.components.browser.thumbnails.ThumbnailsMiddleware
@@ -65,10 +66,14 @@ import mozilla.components.feature.session.SessionUseCases
 import mozilla.components.feature.sitepermissions.SitePermissionsStorage
 import mozilla.components.feature.tabs.TabsUseCases
 import mozilla.components.feature.webnotifications.WebNotificationFeature
+import mozilla.components.lib.crash.Crash
+import mozilla.components.lib.crash.CrashReporter
+import mozilla.components.lib.crash.service.CrashReporterService
 import mozilla.components.lib.fetch.httpurlconnection.HttpURLConnectionClient
 import mozilla.components.lib.nearby.NearbyConnection
 import mozilla.components.service.digitalassetlinks.local.StatementApi
 import mozilla.components.service.digitalassetlinks.local.StatementRelationChecker
+import mozilla.components.concept.base.crash.Breadcrumb
 import org.mozilla.samples.browser.addons.AddonsActivity
 import org.mozilla.samples.browser.downloads.DownloadService
 import org.mozilla.samples.browser.ext.components
@@ -127,21 +132,32 @@ open class DefaultComponents(private val applicationContext: Context) {
             MediaMiddleware(applicationContext, MediaService::class.java),
             DownloadMiddleware(applicationContext, DownloadService::class.java),
             ReaderViewMiddleware(),
-            ThumbnailsMiddleware(thumbnailStorage)
-        ))
+            ThumbnailsMiddleware(thumbnailStorage),
+            UndoMiddleware(::sessionManagerLookup)
+        ) + EngineMiddleware.create(engine, ::findSessionById))
     }
 
     val customTabsStore by lazy { CustomTabsServiceStore() }
 
+    private fun findSessionById(tabId: String): Session? {
+        return sessionManager.findSessionById(tabId)
+    }
+
+    private fun sessionManagerLookup(): SessionManager {
+        return sessionManager
+    }
+
     val sessionManager by lazy {
         SessionManager(engine, store).apply {
-            sessionStorage.restore()?.let { snapshot -> restore(snapshot) }
+            sessionStorage.restore()?.let {
+                snapshot -> restore(snapshot)
+            }
 
             if (size == 0) {
                 add(Session("about:blank"))
             }
 
-            sessionStorage.autoSave(this)
+            sessionStorage.autoSave(store)
                 .periodicallyInForeground(interval = 30, unit = TimeUnit.SECONDS)
                 .whenGoingToBackground()
                 .whenSessionsChange()
@@ -156,9 +172,7 @@ open class DefaultComponents(private val applicationContext: Context) {
         }
     }
 
-    val sessionUseCases by lazy { SessionUseCases(sessionManager) }
-
-    val engineSessionUseCases by lazy { EngineSessionUseCases(sessionManager) }
+    val sessionUseCases by lazy { SessionUseCases(store, sessionManager) }
 
     // Addons
     val addonManager by lazy {
@@ -169,7 +183,7 @@ open class DefaultComponents(private val applicationContext: Context) {
         AddonCollectionProvider(
             applicationContext,
             client,
-            collectionName = "3204bb44a6ef44d39ee34917f28055",
+            collectionName = "83a9cccfe6e24a34bd7b155ff9ee32",
             maxCacheAgeInMinutes = DAY_IN_MINUTES
         )
     }
@@ -187,7 +201,7 @@ open class DefaultComponents(private val applicationContext: Context) {
         }
     }
 
-    val searchUseCases by lazy { SearchUseCases(applicationContext, searchEngineManager, sessionManager) }
+    val searchUseCases by lazy { SearchUseCases(applicationContext, store, searchEngineManager, sessionManager) }
     val defaultSearchUseCase by lazy {
         { searchTerms: String ->
             searchUseCases.defaultSearch.invoke(
@@ -286,6 +300,9 @@ open class DefaultComponents(private val applicationContext: Context) {
             SimpleBrowserMenuItem("P2P") {
                 P2PIntegration.launch?.invoke()
             },
+            SimpleBrowserMenuItem("Restore after crash") {
+                sessionUseCases.crashRecovery.invoke()
+            },
             BrowserMenuDivider()
         )
 
@@ -378,4 +395,37 @@ open class DefaultComponents(private val applicationContext: Context) {
     val tabsUseCases: TabsUseCases by lazy { TabsUseCases(store, sessionManager) }
     val downloadsUseCases: DownloadsUseCases by lazy { DownloadsUseCases(store) }
     val contextMenuUseCases: ContextMenuUseCases by lazy { ContextMenuUseCases(store) }
+
+    val crashReporter: CrashReporter by lazy {
+        CrashReporter(
+            applicationContext,
+            services = listOf(
+                object : CrashReporterService {
+                    override val id: String
+                        get() = "xxx"
+                    override val name: String
+                        get() = "Test"
+
+                    override fun createCrashReportUrl(identifier: String): String? {
+                        return null
+                    }
+
+                    override fun report(crash: Crash.UncaughtExceptionCrash): String? {
+                        return null
+                    }
+
+                    override fun report(crash: Crash.NativeCodeCrash): String? {
+                        return null
+                    }
+
+                    override fun report(
+                        throwable: Throwable,
+                        breadcrumbs: ArrayList<Breadcrumb>
+                    ): String? {
+                        return null
+                    }
+                }
+            )
+        ).install(applicationContext)
+    }
 }

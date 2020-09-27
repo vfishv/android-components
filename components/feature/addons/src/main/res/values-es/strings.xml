@@ -4,6 +4,10 @@
     <string name="mozac_feature_addons_permissions_privacy_description">Leer y modificar configuración de privacidad</string>
     <!-- Description for all_urls add-on permission. -->
     <string name="mozac_feature_addons_permissions_all_urls_description">Acceder a tus datos para todos los sitios web</string>
+    <!-- Description for giving an add-on access to users's data on one site. %1$s  will be replaced by the DNS host name for which a web extension is requesting access (e.g., www.mozilla.org). -->
+    <string name="mozac_feature_addons_permissions_one_site_description">Acceder a tus datos para %1$s</string>
+    <!-- Description for giving an add-on access to users's data in multiple sites in the domain %1$s. %1$s will be replaced by the DNS domain for which a web extension is requesting access (e.g., mozilla.org). -->
+    <string name="mozac_feature_addons_permissions_sites_in_domain_description">Acceder a tus datos para sitios en el dominio %1$s</string>
     <!-- Description for tabs add-on permission. -->
     <string name="mozac_feature_addons_permissions_tabs_description">Acceder a las pestañas del navegador</string>
     <!-- Description for unlimited_storage permission. -->
@@ -102,8 +106,8 @@
     <string name="mozac_feature_addons_install_addon_content_description">Instalar complemento</string>
     <!-- This is the label of a button to cancel an ongoing add-on installation. -->
     <string name="mozac_feature_addons_install_addon_dialog_cancel">Cancelar</string>
-    <!-- Indicates how many users have rated an add-on. %1$s will be replaced with number of users -->
-    <string name="mozac_feature_addons_user_rating_count">Usuarios: %1$s</string>
+    <!-- Indicates how many users have rated an add-on. %1$s will be replaced with number of reviews -->
+    <string name="mozac_feature_addons_user_rating_count_2">Reseñas: %1$s</string>
     <!-- Accessibility content description for the amount of stars that add-on has, where %1$.02f will be the amount of stars and / separator and 5 the maximum number of stars e.g (2/5, 4.5/5 or 5/5)  . -->
     <string name="mozac_feature_addons_rating_content_description">%1$.02f / 5</string>
     <!-- This is the title of page where all the add-ons are listed-->

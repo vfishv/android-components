@@ -1,4 +1,4 @@
-# %ARG DOCKER_IMAGE_PARENT
+ARG DOCKER_IMAGE_PARENT
 FROM $DOCKER_IMAGE_PARENT
 
 LABEL authors="Richard Pappalardo <rpappalax@gmail.com>, Aaron Train <atrain@mozilla.com>"
@@ -28,7 +28,7 @@ RUN curl https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud
     && ${TEST_TOOLS}/google-cloud-sdk/install.sh --quiet \
     && ${TEST_TOOLS}/google-cloud-sdk/bin/gcloud --quiet components update
 
-RUN URL_FLANK_BIN="$($CURL --silent 'https://api.github.com/repos/TestArmada/flank/releases/latest' | jq -r '.assets[].browser_download_url')" \
+RUN URL_FLANK_BIN="$($CURL --silent 'https://api.github.com/repos/Flank/flank/releases/latest' | jq -r '.assets[].browser_download_url')" \
     && $CURL --output "${TEST_TOOLS}/flank.jar" "${URL_FLANK_BIN}" \
     && chmod +x "${TEST_TOOLS}/flank.jar"
 

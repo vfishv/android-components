@@ -13,16 +13,19 @@ import mozilla.components.browser.session.Session
 import mozilla.components.browser.session.engine.request.LaunchIntentMetadata
 import mozilla.components.browser.session.engine.request.LoadRequestMetadata
 import mozilla.components.browser.session.engine.request.LoadRequestOption
-import mozilla.components.browser.session.ext.syncDispatch
 import mozilla.components.browser.session.ext.toElement
+import mozilla.components.browser.state.action.BrowserAction
 import mozilla.components.browser.state.action.ContentAction
+import mozilla.components.browser.state.action.CrashAction
+import mozilla.components.browser.state.action.EngineAction
 import mozilla.components.browser.state.action.MediaAction
 import mozilla.components.browser.state.action.TrackingProtectionAction
+import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.content.DownloadState
-import mozilla.components.browser.state.state.content.FindResultState
 import mozilla.components.browser.state.state.content.DownloadState.Status.INITIATED
-import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.state.state.content.FindResultState
 import mozilla.components.concept.engine.EngineSession
+import mozilla.components.concept.engine.EngineSessionState
 import mozilla.components.concept.engine.HitResult
 import mozilla.components.concept.engine.content.blocking.Tracker
 import mozilla.components.concept.engine.history.HistoryItem
@@ -32,6 +35,7 @@ import mozilla.components.concept.engine.media.RecordingDevice
 import mozilla.components.concept.engine.permission.PermissionRequest
 import mozilla.components.concept.engine.prompt.PromptRequest
 import mozilla.components.concept.engine.window.WindowRequest
+import mozilla.components.lib.state.Store
 import mozilla.components.support.base.observer.Consumable
 import mozilla.components.support.ktx.android.net.isInScope
 import mozilla.components.support.ktx.kotlin.isSameOriginAs
@@ -43,7 +47,7 @@ import mozilla.components.support.ktx.kotlin.isSameOriginAs
 @Suppress("TooManyFunctions", "LargeClass")
 internal class EngineObserver(
     private val session: Session,
-    private val store: BrowserStore? = null
+    private val store: Store<BrowserState, BrowserAction>?
 ) : EngineSession.Observer {
     private val mediaMap: MutableMap<Media, MediaObserver> = mutableMapOf()
 
@@ -164,7 +168,7 @@ internal class EngineObserver(
     }
 
     override fun onExcludedOnTrackingProtectionChange(excluded: Boolean) {
-        store?.syncDispatch(TrackingProtectionAction.ToggleExclusionListAction(session.id, excluded))
+        store?.dispatch(TrackingProtectionAction.ToggleExclusionListAction(session.id, excluded))
     }
 
     override fun onTrackerBlockingEnabledChange(enabled: Boolean) {
@@ -198,7 +202,8 @@ internal class EngineObserver(
         contentLength: Long?,
         contentType: String?,
         cookie: String?,
-        userAgent: String?
+        userAgent: String?,
+        isPrivate: Boolean
     ) {
         // We want to avoid negative contentLength values
         // For more info see https://bugzilla.mozilla.org/show_bug.cgi?id=1632594
@@ -211,7 +216,8 @@ internal class EngineObserver(
             0,
             INITIATED,
             userAgent,
-            Environment.DIRECTORY_DOWNLOADS
+            Environment.DIRECTORY_DOWNLOADS,
+            private = isPrivate
         )
 
         store?.dispatch(ContentAction.UpdateDownloadAction(
@@ -237,7 +243,12 @@ internal class EngineObserver(
     }
 
     override fun onThumbnailChange(bitmap: Bitmap?) {
-        session.thumbnail = bitmap
+        store?.dispatch(if (bitmap == null) {
+                ContentAction.RemoveThumbnailAction(session.id)
+            } else {
+                ContentAction.UpdateThumbnailAction(session.id, bitmap)
+            }
+        )
     }
 
     override fun onContentPermissionRequest(permissionRequest: PermissionRequest) {
@@ -299,7 +310,21 @@ internal class EngineObserver(
     }
 
     override fun onCrash() {
-        session.crashed = true
+        store?.dispatch(CrashAction.SessionCrashedAction(
+            session.id
+        ))
+    }
+
+    override fun onProcessKilled() {
+        store?.dispatch(EngineAction.SuspendEngineSessionAction(
+            session.id
+        ))
+    }
+
+    override fun onStateUpdated(state: EngineSessionState) {
+        store?.dispatch(EngineAction.UpdateEngineSessionStateAction(
+            session.id, state
+        ))
     }
 
     override fun onRecordingStateChanged(devices: List<RecordingDevice>) {

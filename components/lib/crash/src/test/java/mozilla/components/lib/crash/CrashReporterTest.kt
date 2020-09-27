@@ -13,7 +13,7 @@ import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.TestCoroutineScope
 import mozilla.components.lib.crash.service.CrashReporterService
 import mozilla.components.lib.crash.service.CrashTelemetryService
-import mozilla.components.support.base.crash.Breadcrumb
+import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.support.test.any
 import mozilla.components.support.test.eq
 import mozilla.components.support.test.expectException
@@ -35,6 +35,7 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import java.lang.Thread.sleep
 import java.lang.reflect.Modifier
 
 @ExperimentalCoroutinesApi
@@ -154,6 +155,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         val crash = Crash.NativeCodeCrash(
+            0,
             "dump.path",
             true,
             "extras.path",
@@ -345,7 +347,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         reporter.submitReport(
-            Crash.UncaughtExceptionCrash(RuntimeException(), arrayListOf())
+            Crash.UncaughtExceptionCrash(0, RuntimeException(), arrayListOf())
         ).joinBlocking()
         assertTrue(exceptionCrash)
     }
@@ -378,7 +380,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         reporter.submitReport(
-            Crash.NativeCodeCrash("", true, "", false, arrayListOf())
+            Crash.NativeCodeCrash(0, "", true, "", false, arrayListOf())
         ).joinBlocking()
         assertTrue(nativeCrash)
     }
@@ -419,7 +421,13 @@ class CrashReporterTest {
         ).install(testContext))
 
         val throwable = RuntimeException()
-        val breadcrumb = Breadcrumb(testMessage, testData, testCategory, testLevel, testType)
+        val breadcrumb = Breadcrumb(
+            testMessage,
+            testData,
+            testCategory,
+            testLevel,
+            testType
+        )
         reporter.recordCrashBreadcrumb(breadcrumb)
 
         reporter.submitCaughtException(throwable).joinBlocking()
@@ -466,7 +474,13 @@ class CrashReporterTest {
 
         val throwable = RuntimeException()
         throwable.stackTrace = emptyArray()
-        val breadcrumb = Breadcrumb(testMessage, testData, testCategory, testLevel, testType)
+        val breadcrumb = Breadcrumb(
+            testMessage,
+            testData,
+            testCategory,
+            testLevel,
+            testType
+        )
         reporter.recordCrashBreadcrumb(breadcrumb)
 
         reporter.submitCaughtException(throwable).joinBlocking()
@@ -498,7 +512,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         reporter.submitCrashTelemetry(
-            Crash.NativeCodeCrash("", true, "", false, arrayListOf())
+            Crash.NativeCodeCrash(0, "", true, "", false, arrayListOf())
         ).joinBlocking()
         assertTrue(nativeCrash)
     }
@@ -538,6 +552,7 @@ class CrashReporterTest {
         ).install(context)
 
         val nativeCrash = Crash.NativeCodeCrash(
+            0,
             "dump.path",
             true,
             "extras.path",
@@ -574,6 +589,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         val nativeCrash = Crash.NativeCodeCrash(
+            0,
             "dump.path",
             true,
             "extras.path",
@@ -600,6 +616,7 @@ class CrashReporterTest {
         ).install(testContext))
 
         val nativeCrash = Crash.NativeCodeCrash(
+            0,
             "dump.path",
             true,
             "extras.path",
@@ -617,10 +634,130 @@ class CrashReporterTest {
         val instanceField = CrashReporter::class.java.getDeclaredField("instance")
         assertTrue(Modifier.isVolatile(instanceField.modifiers))
     }
+
+    @Test
+    fun `Breadcrumbs stores only max number of breadcrumbs`() {
+        val testMessage = "test_Message"
+        val testData = hashMapOf("1" to "one", "2" to "two")
+        val testCategory = "testing_category"
+        val testLevel = Breadcrumb.Level.CRITICAL
+        val testType = Breadcrumb.Type.USER
+
+        var crashReporter = CrashReporter(
+            context = testContext,
+            services = listOf(mock()),
+            maxBreadCrumbs = 5
+        )
+
+        repeat(10) {
+            crashReporter.recordCrashBreadcrumb(Breadcrumb(testMessage, testData, testCategory, testLevel, testType))
+        }
+        assertEquals(crashReporter.crashBreadcrumbs.size, 5)
+
+        crashReporter = CrashReporter(
+            context = testContext,
+            services = listOf(mock()),
+            maxBreadCrumbs = 5
+        )
+        repeat(15) {
+            crashReporter.recordCrashBreadcrumb(Breadcrumb(testMessage, testData, testCategory, testLevel, testType))
+        }
+        assertEquals(crashReporter.crashBreadcrumbs.size, 5)
+    }
+
+    @Test
+    fun `Breadcrumb priority queue stores the latest breadcrumbs`() {
+        val testMessage = "test_Message"
+        val testData = hashMapOf("1" to "one", "2" to "two")
+        val testCategory = "testing_category"
+        val testType = Breadcrumb.Type.USER
+        val maxNum = 10
+
+        var crashReporter = CrashReporter(
+            context = testContext,
+            services = listOf(mock()),
+            maxBreadCrumbs = maxNum
+        )
+
+        repeat(maxNum) {
+            crashReporter.recordCrashBreadcrumb(
+                Breadcrumb(testMessage, testData, testCategory, Breadcrumb.Level.CRITICAL, testType)
+            )
+            sleep(10) /* make sure time elapsed */
+        }
+
+        for (i in 0 until maxNum) {
+            assertEquals(crashReporter.crashBreadcrumbs.elementAt(i).level, Breadcrumb.Level.CRITICAL)
+        }
+
+        var time = crashReporter.crashBreadcrumbs[0].date
+        for (i in 1 until crashReporter.crashBreadcrumbs.size) {
+            assertTrue(time.before(crashReporter.crashBreadcrumbs[i].date))
+            time = crashReporter.crashBreadcrumbs[i].date
+        }
+
+        repeat(maxNum) {
+            crashReporter.recordCrashBreadcrumb(
+                Breadcrumb(testMessage, testData, testCategory, Breadcrumb.Level.DEBUG, testType)
+            )
+            sleep(10) /* make sure time elapsed */
+        }
+
+        for (i in 0 until maxNum) {
+            assertEquals(crashReporter.crashBreadcrumbs.elementAt(i).level, Breadcrumb.Level.DEBUG)
+        }
+
+        time = crashReporter.crashBreadcrumbs[0].date
+        for (i in 1 until crashReporter.crashBreadcrumbs.size) {
+            assertTrue(time.before(crashReporter.crashBreadcrumbs[i].date))
+            time = crashReporter.crashBreadcrumbs[i].date
+        }
+    }
+
+    @Test
+    fun `Breadcrumb priority queue output list result is sorted by time`() {
+        val testMessage = "test_Message"
+        val testData = hashMapOf("1" to "one", "2" to "two")
+        val testCategory = "testing_category"
+        val testType = Breadcrumb.Type.USER
+        val maxNum = 10
+
+        var crashReporter = CrashReporter(
+            context = testContext,
+            services = listOf(mock()),
+            maxBreadCrumbs = 5
+        )
+
+        repeat(maxNum) {
+            crashReporter.recordCrashBreadcrumb(
+                Breadcrumb(testMessage, testData, testCategory, Breadcrumb.Level.DEBUG, testType)
+            )
+            sleep(10) /* make sure time elapsed */
+        }
+
+        var time = crashReporter.crashBreadcrumbs[0].date
+        for (i in 1 until crashReporter.crashBreadcrumbs.size) {
+            assertTrue(time.before(crashReporter.crashBreadcrumbs[i].date))
+            time = crashReporter.crashBreadcrumbs[i].date
+        }
+
+        repeat(maxNum / 2) {
+            crashReporter.recordCrashBreadcrumb(
+                Breadcrumb(testMessage, testData, testCategory, Breadcrumb.Level.INFO, testType)
+            )
+            sleep(10) /* make sure time elapsed */
+        }
+
+        time = crashReporter.crashBreadcrumbs[0].date
+        for (i in 1 until crashReporter.crashBreadcrumbs.size) {
+            assertTrue(time.before(crashReporter.crashBreadcrumbs[i].date))
+            time = crashReporter.crashBreadcrumbs[i].date
+        }
+    }
 }
 
 private fun createUncaughtExceptionCrash(): Crash.UncaughtExceptionCrash {
     return Crash.UncaughtExceptionCrash(
-        RuntimeException(), ArrayList()
+        0, RuntimeException(), ArrayList()
     )
 }

@@ -46,8 +46,14 @@
     <!-- The document title and heading of the error page shown when a website responds in an unexpected way and the browser cannot continue. -->
     <string name="mozac_browser_errorpages_unknown_socket_type_title">استجابة غير متوقعة من الخادوم</string>
 
+    <!-- The error message shown when a website responds in an unexpected way and the browser cannot continue. -->
+    <string name="mozac_browser_errorpages_unknown_socket_type_message"><![CDATA[<p>استجاب الموقع لطلب الشبكة بطريقة غير متوقعة ولا يستطيع المتصفح المواصلة.</p>]]></string>
+
     <!-- The document title and heading of the error page shown when the browser gets stuck in an infinite loop when loading a website. -->
     <string name="mozac_browser_errorpages_redirect_loop_title">لا تعيد الصفحة التوجيه بشكل سليم</string>
+
+    <!-- The error message shown when the browser gets stuck in an infinite loop when loading a website. -->
+    <string name="mozac_browser_errorpages_redirect_loop_message"><![CDATA[<p>توقف المتصفح عن محاولة جلب العنصر المطلوب. يعيد الموقع توجيه الطلب بصورة لن تتم أبدا.</p><ul><li>هل عطّلت أو حجبتَ الكعكات من هذا الموقع؟</li><li>إذا كان قبول كعكات هذا الموقع لا يحل مشكلتك، فهذه على الأرجح مشكلة في إعدادات الخادوم وليس حاسوبك.</li></ul>]]></string>
 
     <!-- The document title and heading of the error page shown when a website cannot be loaded because the browser is in offline mode. -->
     <string name="mozac_browser_errorpages_offline_title">وضع بدون اتصال</string>
@@ -97,6 +103,8 @@
 
     <!-- The document title and heading of an error page. -->
     <string name="mozac_browser_errorpages_no_internet_title">لا يوجد اتصال بالإنترنت</string>
+    <!-- The main body text of this error page. It will be shown beneath the title -->
+    <string name="mozac_browser_errorpages_no_internet_message">افحص اتصال الشبكة أو جرّب إعادة تحميل الصفحة بعد قليل.</string>
     <!-- Text that will show up on the button at the bottom of the error page -->
     <string name="mozac_browser_errorpages_no_internet_refresh_button">أعِد التحميل</string>
 
@@ -134,6 +142,14 @@
 
     <!-- The document title and heading of an error page. -->
     <string name="mozac_browser_errorpages_unknown_proxy_host_title">لم يُعثر على خادوم وسيط</string>
+
+    <string name="mozac_browser_errorpages_unknown_proxy_host_message"><![CDATA[<p>ضُبط المتصفّح ليستخدم خادوما وسيطا، لكن لم يوجد الوسيط.</p><ul><li>هل إعدادات الوسيط سليمة؟ تأكد من الإعدادات وأعد المحاولة.</li><li>هل الجهاز متصل بشبكة نشطة؟</li><li>أما زلت تواجه المشاكل؟ راجع مدير الشبكة أو مزود الخدمة للمساعدة.</li></ul>]]></string>
+
+    <!-- The %1$s will be replaced by the malicious website URL-->
+    <string name="mozac_browser_errorpages_safe_browsing_malware_uri_message"><![CDATA[أُبلِغ عن أن الموقع %1$s موقع هجمات و حُجب بناء على تفضيلات الأمن.]]></string>
+
+    <!-- The %1$s will be replaced by the malicious website URL-->
+    <string name="mozac_browser_errorpages_safe_browsing_unwanted_uri_message"><![CDATA[أُبلِغ عن أن الموقع %1$s يقدم برمجيات غير مرغوب فيها و حُجب بناء على تفضيلات الأمن.]]></string>
 
     <!-- The %1$s will be replaced by the malicious website URL-->
     <string name="mozac_browser_errorpages_safe_harmful_uri_message"><![CDATA[<p>أُبلِغ عن أن الموقع %1$s موقع خطر محتمل و حُجِبَ بناء على تفضيلات الأمن.</p>]]></string>

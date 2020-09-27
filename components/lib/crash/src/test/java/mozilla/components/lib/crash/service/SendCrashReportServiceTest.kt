@@ -12,7 +12,7 @@ import kotlinx.coroutines.test.TestCoroutineDispatcher
 import kotlinx.coroutines.test.TestCoroutineScope
 import mozilla.components.lib.crash.Crash
 import mozilla.components.lib.crash.CrashReporter
-import mozilla.components.support.base.crash.Breadcrumb
+import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.support.test.any
 import mozilla.components.support.test.eq
 import mozilla.components.support.test.mock
@@ -83,6 +83,7 @@ class SendCrashReportServiceTest {
             scope = scope
         )).install(testContext)
         val originalCrash = Crash.NativeCodeCrash(
+                123,
                 "/data/data/org.mozilla.samples.browser/files/mozilla/Crash Reports/pending/3ba5f665-8422-dc8e-a88e-fc65c081d304.dmp",
                 true,
                 "/data/data/org.mozilla.samples.browser/files/mozilla/Crash Reports/pending/3ba5f665-8422-dc8e-a88e-fc65c081d304.extra",
@@ -115,6 +116,7 @@ class SendCrashReportServiceTest {
         val nativeCrash = caughtCrash
             ?: throw AssertionError("Expected NativeCodeCrash instance")
 
+        assertEquals(123, nativeCrash.timestamp)
         assertEquals(true, nativeCrash.minidumpSuccess)
         assertEquals(false, nativeCrash.isFatal)
         assertEquals(

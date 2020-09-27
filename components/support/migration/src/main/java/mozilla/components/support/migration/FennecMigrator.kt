@@ -28,7 +28,7 @@ import mozilla.components.feature.top.sites.PinnedSiteStorage
 import mozilla.components.service.fxa.manager.FxaAccountManager
 import mozilla.components.service.glean.Glean
 import mozilla.components.service.sync.logins.SyncableLoginsStorage
-import mozilla.components.support.base.crash.CrashReporting
+import mozilla.components.concept.base.crash.CrashReporting
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.migration.FennecMigrator.Builder
 import mozilla.components.support.migration.GleanMetrics.MigrationAddons
@@ -535,12 +535,7 @@ class FennecMigrator private constructor(
     }
 
     @VisibleForTesting
-    internal fun isFennecInstallation(): Boolean {
-        // We consider presence of 'browser.db' as a proxy for 'this is a fennec install'.
-        // Just 'profile' isn't enough, since a profile directory will be created by GV in the same
-        // way as it may be already present in Fennec. However, in Fenix we do not have 'browser.db'.
-        return browserDbPath?.let { File(it).exists() } ?: false
-    }
+    internal fun isFennecInstallation() = isFennecInstallation(browserDbPath)
 
     /**
      * If a migration is needed then invoking this method will update the [MigrationStore] and launch
@@ -1334,4 +1329,11 @@ class FennecMigrator private constructor(
             Result.Failure(e)
         }
     }
+}
+
+internal fun isFennecInstallation(browserDbPath: String?): Boolean {
+    // We consider presence of 'browser.db' as a proxy for 'this is a fennec install'.
+    // Just 'profile' isn't enough, since a profile directory will be created by GV in the same
+    // way as it may be already present in Fennec. However, in Fenix we do not have 'browser.db'.
+    return browserDbPath?.let { File(it).exists() } ?: false
 }

@@ -77,8 +77,6 @@ class GeckoEngineSession(
     internal var scrollY: Int = 0
 
     internal var job: Job = Job()
-    private var lastSessionState: GeckoSession.SessionState? = null
-    private var stateBeforeCrash: GeckoSession.SessionState? = null
     private var canGoBack: Boolean = false
 
     /**
@@ -190,13 +188,6 @@ class GeckoEngineSession(
     }
 
     /**
-     * See [EngineSession.saveState]
-     */
-    override fun saveState(): EngineSessionState {
-        return GeckoEngineSessionState(lastSessionState)
-    }
-
-    /**
      * See [EngineSession.restoreState]
      */
     override fun restoreState(state: EngineSessionState): Boolean {
@@ -232,7 +223,32 @@ class GeckoEngineSession(
             policy.contains(TrackingProtectionPolicy.TrackingCategory.SCRIPTS_AND_SUB_RESOURCES)
 
         geckoSession.settings.useTrackingProtection = shouldBlockContent && enabled
-        notifyAtLeastOneObserver { onTrackerBlockingEnabledChange(enabled) }
+        etpEnabled = enabled
+        notifyObservers {
+            onTrackerBlockingEnabledChange(this, enabled)
+        }
+    }
+
+    // This is a temporary solution to address
+    // https://github.com/mozilla-mobile/android-components/issues/8431
+    // until we eventually delete [EngineObserver] then this will not be needed.
+    private var etpEnabled: Boolean? = null
+
+    override fun register(observer: Observer) {
+        super.register(observer)
+        etpEnabled?.let { enabled ->
+            onTrackerBlockingEnabledChange(observer, enabled)
+        }
+    }
+
+    private fun onTrackerBlockingEnabledChange(observer: Observer, enabled: Boolean) {
+        // We now register engine observers in a middleware using a dedicated
+        // store thread. Since this notification can be delayed until an observer
+        // is registered we switch to the main scope to make sure we're not notifying
+        // on the store thread.
+        MainScope().launch {
+            observer.onTrackerBlockingEnabledChange(enabled)
+        }
     }
 
     /**
@@ -361,22 +377,6 @@ class GeckoEngineSession(
      */
     override fun exitFullScreenMode() {
         geckoSession.exitFullScreen()
-    }
-
-    /**
-     * See [EngineSession.recoverFromCrash]
-     */
-    @Synchronized
-    override fun recoverFromCrash(): Boolean {
-        val state = stateBeforeCrash
-
-        return if (state != null) {
-            geckoSession.restoreState(state)
-            stateBeforeCrash = null
-            true
-        } else {
-            false
-        }
     }
 
     /**
@@ -593,7 +593,9 @@ class GeckoEngineSession(
         }
 
         override fun onSessionStateChange(session: GeckoSession, sessionState: GeckoSession.SessionState) {
-            lastSessionState = sessionState
+            notifyObservers {
+                onStateUpdated(GeckoEngineSessionState(sessionState))
+            }
         }
     }
 
@@ -701,6 +703,10 @@ class GeckoEngineSession(
             notifyObservers { onFirstContentfulPaint() }
         }
 
+        override fun onPaintStatusReset(session: GeckoSession) {
+            notifyObservers { onPaintStatusReset() }
+        }
+
         override fun onContextMenu(
             session: GeckoSession,
             screenX: Int,
@@ -714,24 +720,13 @@ class GeckoEngineSession(
         }
 
         override fun onCrash(session: GeckoSession) {
-            stateBeforeCrash = lastSessionState
-
-            recoverGeckoSession()
-
             notifyObservers { onCrash() }
         }
 
         override fun onKill(session: GeckoSession) {
-            // The content process of this session got killed (resources reclaimed by Android).
-            // Let's recover and restore the last known state.
-
-            val state = lastSessionState
-
-            recoverGeckoSession()
-
-            state?.let { geckoSession.restoreState(it) }
-
-            notifyObservers { onProcessKilled() }
+            notifyObservers {
+                onProcessKilled()
+            }
         }
 
         private fun recoverGeckoSession() {
@@ -755,7 +750,9 @@ class GeckoEngineSession(
                         url = response.uri,
                         contentLength = response.contentLength,
                         contentType = response.contentType,
-                        fileName = response.filename)
+                        fileName = response.filename,
+                        isPrivate = privateMode
+                )
             }
         }
 

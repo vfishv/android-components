@@ -7,6 +7,7 @@ package mozilla.components.browser.state.reducer
 import mozilla.components.browser.state.action.BrowserAction
 import mozilla.components.browser.state.action.ContainerAction
 import mozilla.components.browser.state.action.ContentAction
+import mozilla.components.browser.state.action.CrashAction
 import mozilla.components.browser.state.action.CustomTabListAction
 import mozilla.components.browser.state.action.DownloadAction
 import mozilla.components.browser.state.action.EngineAction
@@ -15,7 +16,10 @@ import mozilla.components.browser.state.action.ReaderAction
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.action.SystemAction
 import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.action.LastAccessAction
+import mozilla.components.browser.state.action.RecentlyClosedAction
 import mozilla.components.browser.state.action.TrackingProtectionAction
+import mozilla.components.browser.state.action.UndoAction
 import mozilla.components.browser.state.action.WebExtensionAction
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.CustomTabSessionState
@@ -34,6 +38,7 @@ internal object BrowserStateReducer {
     fun reduce(state: BrowserState, action: BrowserAction): BrowserState {
         return when (action) {
             is ContainerAction -> ContainerReducer.reduce(state, action)
+            is RecentlyClosedAction -> RecentlyClosedReducer.reduce(state, action)
             is ContentAction -> ContentStateReducer.reduce(state, action)
             is CustomTabListAction -> CustomTabListReducer.reduce(state, action)
             is EngineAction -> EngineStateReducer.reduce(state, action)
@@ -45,6 +50,9 @@ internal object BrowserStateReducer {
             is MediaAction -> MediaReducer.reduce(state, action)
             is DownloadAction -> DownloadStateReducer.reduce(state, action)
             is SearchAction -> SearchReducer.reduce(state, action)
+            is CrashAction -> CrashReducer.reduce(state, action)
+            is LastAccessAction -> LastAccessReducer.reduce(state, action)
+            is UndoAction -> UndoReducer.reduce(state, action)
         }
     }
 }

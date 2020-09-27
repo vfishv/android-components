@@ -21,18 +21,19 @@ import java.util.UUID
  * that contains the overridden values for this tab.
  * @property readerState the [ReaderState] of this tab.
  * @property contextId the session context ID of this tab.
+ * @param lastAccess The last time this tab was selected (requires LastAccessMiddleware).
  */
 data class TabSessionState(
     override val id: String = UUID.randomUUID().toString(),
     override val content: ContentState,
     override val trackingProtection: TrackingProtectionState = TrackingProtectionState(),
     override val engineState: EngineState = EngineState(),
-    val parentId: String? = null,
     override val extensionState: Map<String, WebExtensionState> = emptyMap(),
-    val readerState: ReaderState = ReaderState(),
     override val contextId: String? = null,
+    override val source: SessionState.Source = SessionState.Source.NONE,
+    val parentId: String? = null,
     val lastAccess: Long = 0L,
-    override val source: SessionState.Source = SessionState.Source.NONE
+    val readerState: ReaderState = ReaderState()
 ) : SessionState {
 
     override fun createCopy(

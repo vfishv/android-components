@@ -11,8 +11,13 @@ import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
 import mozilla.components.browser.session.SessionManager
 import mozilla.components.browser.session.ext.readSnapshot
-import mozilla.components.browser.session.ext.writeSnapshot
+import mozilla.components.browser.state.selector.normalTabs
+import mozilla.components.browser.state.selector.selectedTab
+import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.Engine
+import mozilla.components.concept.base.crash.CrashReporting
+import mozilla.components.support.base.log.logger.Logger
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -26,9 +31,12 @@ private val sessionFileLock = Any()
  */
 class SessionStorage(
     private val context: Context,
-    private val engine: Engine
+    private val engine: Engine,
+    private val crashReporting: CrashReporting? = null
 ) : AutoSave.Storage {
-    private val serializer = SnapshotSerializer()
+    private val logger = Logger("SessionStorage")
+    private val snapshotSerializer = SnapshotSerializer()
+    private val stateSerializer = BrowserStateSerializer()
 
     /**
      * Reads the saved state from disk. Returns null if no state was found on disk or if reading the file failed.
@@ -37,7 +45,7 @@ class SessionStorage(
     fun restore(): SessionManager.Snapshot? {
         synchronized(sessionFileLock) {
             return getFileForEngine(context, engine)
-                .readSnapshot(engine, serializer)
+                .readSnapshot(engine, snapshotSerializer)
         }
     }
 
@@ -53,19 +61,30 @@ class SessionStorage(
      * Saves the given state to disk.
      */
     @WorkerThread
-    override fun save(snapshot: SessionManager.Snapshot): Boolean {
-        if (snapshot.isEmpty()) {
+    override fun save(state: BrowserState): Boolean {
+        if (state.normalTabs.isEmpty()) {
             clear()
             return true
         }
 
-        requireNotNull(snapshot.sessions.getOrNull(snapshot.selectedSessionIndex)) {
-            "SessionSnapshot's selected index must be in bounds"
+        val stateToPersist = if (state.selectedTabId != null && state.selectedTab == null) {
+            // Needs investigation to figure out and prevent cause:
+            // https://github.com/mozilla-mobile/android-components/issues/8417
+            logger.error("Selected tab ID set, but tab with matching ID not found. Clearing selection.")
+            state.copy(selectedTabId = null)
+        } else {
+            state
         }
 
-        synchronized(sessionFileLock) {
-            return getFileForEngine(context, engine)
-                .writeSnapshot(snapshot, serializer)
+        return synchronized(sessionFileLock) {
+            try {
+                val file = getFileForEngine(context, engine)
+                stateSerializer.write(stateToPersist, file)
+            } catch (e: OutOfMemoryError) {
+                crashReporting?.submitCaughtException(e)
+                logger.error("Failed to save state to disk due to OutOfMemoryError", e)
+                false
+            }
         }
     }
 
@@ -74,11 +93,11 @@ class SessionStorage(
      */
     @CheckResult
     fun autoSave(
-        sessionManager: SessionManager,
+        store: BrowserStore,
         interval: Long = AutoSave.DEFAULT_INTERVAL_MILLISECONDS,
         unit: TimeUnit = TimeUnit.MILLISECONDS
     ): AutoSave {
-        return AutoSave(sessionManager, this, unit.toMillis(interval))
+        return AutoSave(store, this, unit.toMillis(interval))
     }
 }
 

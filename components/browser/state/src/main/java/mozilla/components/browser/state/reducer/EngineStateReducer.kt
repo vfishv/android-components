@@ -10,20 +10,46 @@ import mozilla.components.browser.state.state.EngineState
 import mozilla.components.browser.state.state.SessionState
 
 internal object EngineStateReducer {
-
     /**
      * [EngineAction] Reducer function for modifying a specific [EngineState]
      * of a [SessionState].
      */
     fun reduce(state: BrowserState, action: EngineAction): BrowserState = when (action) {
         is EngineAction.LinkEngineSessionAction -> state.copyWithEngineState(action.sessionId) {
-            it.copy(engineSession = action.engineSession)
+            it.copy(
+                engineSession = action.engineSession
+            )
         }
         is EngineAction.UnlinkEngineSessionAction -> state.copyWithEngineState(action.sessionId) {
-            it.copy(engineSession = null, engineSessionState = null)
+            it.copy(
+                engineSession = null,
+                engineObserver = null
+            )
         }
-        is EngineAction.UpdateEngineSessionStateAction -> state.copyWithEngineState(action.sessionId) {
-            it.copy(engineSessionState = action.engineSessionState)
+        is EngineAction.UpdateEngineSessionObserverAction -> state.copyWithEngineState(action.sessionId) {
+            it.copy(engineObserver = action.engineSessionObserver)
+        }
+        is EngineAction.UpdateEngineSessionStateAction -> state.copyWithEngineState(action.sessionId) { engineState ->
+            if (engineState.crashed) {
+                // We ignore state updates for a crashed engine session. We want to keep the last state until
+                // this tab gets restored (or closed).
+                engineState
+            } else {
+                engineState.copy(engineSessionState = action.engineSessionState)
+            }
+        }
+        is EngineAction.SuspendEngineSessionAction,
+        is EngineAction.CreateEngineSessionAction,
+        is EngineAction.LoadDataAction,
+        is EngineAction.LoadUrlAction,
+        is EngineAction.ReloadAction,
+        is EngineAction.GoBackAction,
+        is EngineAction.GoForwardAction,
+        is EngineAction.GoToHistoryIndexAction,
+        is EngineAction.ToggleDesktopModeAction,
+        is EngineAction.ExitFullScreenModeAction,
+        is EngineAction.ClearDataAction -> {
+            throw IllegalStateException("You need to add EngineMiddleware to your BrowserStore. ($action)")
         }
     }
 }

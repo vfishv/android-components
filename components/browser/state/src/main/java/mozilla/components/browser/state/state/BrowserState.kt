@@ -11,6 +11,8 @@ import mozilla.components.lib.state.State
  * Value type that represents the complete state of the browser/engine.
  *
  * @property tabs the list of open tabs, defaults to an empty list.
+ * @property closedTabs the list of recently closed tabs if a [RecentlyClosedMiddleware] is added,
+ * defaults to an empty list.
  * @property selectedTabId the ID of the currently selected (active) tab.
  * @property customTabs the list of custom tabs, defaults to an empty list.
  * @property containers A map of [SessionState.contextId] and their respective container [ContainerState].
@@ -20,14 +22,17 @@ import mozilla.components.lib.state.State
  * @property media The state of all media elements and playback states for all tabs.
  * @property search the state of search for this browser state.
  * @property downloads Downloads ([DownloadState]s) mapped to their IDs.
+ * @property undoHistory History of recently closed tabs to support "undo" (Requires UndoMiddleware).
  */
 data class BrowserState(
     val tabs: List<TabSessionState> = emptyList(),
+    val closedTabs: List<ClosedTabSessionState> = emptyList(),
     val selectedTabId: String? = null,
     val customTabs: List<CustomTabSessionState> = emptyList(),
     val containers: Map<String, ContainerState> = emptyMap(),
     val extensions: Map<String, WebExtensionState> = emptyMap(),
     val media: MediaState = MediaState(),
-    val downloads: Map<Long, DownloadState> = emptyMap(),
-    val search: SearchState = SearchState()
+    val downloads: Map<String, DownloadState> = emptyMap(),
+    val search: SearchState = SearchState(),
+    val undoHistory: UndoHistoryState = UndoHistoryState()
 ) : State

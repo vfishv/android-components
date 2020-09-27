@@ -4,13 +4,115 @@ title: Changelog
 permalink: /changelog/
 ---
 
-# 57.0.0-SNAPSHOT (In Development)
+# 61.0.0-SNAPSHOT (In Development)
 
-* [Commits](https://github.com/mozilla-mobile/android-components/compare/v56.0.0...master)
-* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/117?closed=1)
+* [Commits](https://github.com/mozilla-mobile/android-components/compare/v60.0.0...master)
+* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/121?closed=1)
 * [Dependencies](https://github.com/mozilla-mobile/android-components/blob/master/buildSrc/src/main/java/Dependencies.kt)
 * [Gecko](https://github.com/mozilla-mobile/android-components/blob/master/buildSrc/src/main/java/Gecko.kt)
-* [Configuration](https://github.com/mozilla-mobile/android-components/blob/master/buildSrc/src/main/java/Config.kt)
+* [Configuration](https://github.com/mozilla-mobile/android-components/blob/master/.config.yml)
+
+* **browser-session**
+  * Added "undo" functionality via `UndoMiddleware`.
+* **feature-tabs**
+  * Added `TabsUseCases.UndoTabRemovalUseCase` for undoing the removal of tabs.
+* **feature-webcompat-reporter**
+  * Added the ability to automatically add a screenshot as well as more technical details when submitting a WebCompat report.  
+* **feature-addons**  
+  * ⚠️ This is a breaking change for call sites that don't rely on named arguments: `AddonCollectionProvider` now supports configuring a custom collection owner (via AMO user ID or name).  
+  ```kotlin
+   val addonCollectionProvider by lazy {
+        AddonCollectionProvider(
+            applicationContext,
+            client,
+            collectionUser = "16314372"
+            collectionName = "myCollection",
+            maxCacheAgeInMinutes = DAY_IN_MINUTES
+        )
+    }
+  * 🚒 Bug fixed [issue #8267](https://github.com/mozilla-mobile/android-components/issues/8267) Devtools permission had wrong translation.
+  ```
+
+# 60.0.0
+
+* [Commits](https://github.com/mozilla-mobile/android-components/compare/v59.0.0...v60.0.0)
+* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/120?closed=1)
+* [Dependencies](https://github.com/mozilla-mobile/android-components/blob/v60.0.0/buildSrc/src/main/java/Dependencies.kt)
+* [Gecko](https://github.com/mozilla-mobile/android-components/blob/v60.0.0/buildSrc/src/main/java/Gecko.kt)
+* [Configuration](https://github.com/mozilla-mobile/android-components/blob/v60.0.0/.config.yml)
+
+* **browser-engine-gecko**, **browser-engine-gecko-beta**, **browser-engine-gecko-nightly**
+  * 🚒 Bug fixed [issue #8431](https://github.com/mozilla-mobile/android-components/issues/8431) update `Session.trackerBlockingEnabled` and `SessionState#trackingProtection#enabled` with the initial tracking protection state.
+* **feature-tabs**
+  * Added `TabsUseCases.removeNormalTabs()` and `TabsUseCases.removePrivateTabs()`.
+  * ⚠️ **This is a breaking change**: Removed `TabsUseCases.removeAllTabsOfType()`.
+* **browser-session**
+  * Added `SessionManager.removeNormalSessions()` and `SessionManager.removePrivateSessions()`.
+* **feature-downloads**
+  * 🚒 Bug fixed [issue #8456](https://github.com/mozilla-mobile/android-components/issues/8456) Crash SQLiteConstraintException UNIQUE constraint failed: downloads.id (code 1555).
+
+* **service-glean**
+  * Glean was upgraded to v32.4.0
+    * Allow using quantity metric type outside of Gecko ([#1198](https://github.com/mozilla/glean/pull/1198))
+    * Update `glean_parser` to 1.28.5
+      * The `SUPERFLUOUS_NO_LINT` warning has been removed from the glinter. It likely did more harm than good, and makes it hard to make metrics.yaml files that pass across different versions of `glean_parser`.
+      * Expired metrics will now produce a linter warning, `EXPIRED_METRIC`.
+      * Expiry dates that are more than 730 days (~2 years) in the future will produce a linter warning, `EXPIRATION_DATE_TOO_FAR`.
+      * Allow using the Quantity metric type outside of Gecko.
+      * New parser configs `custom_is_expired` and `custom_validate_expires` added. These are both functions that take the expires value of the metric and return a bool. (See `Metric.is_expired` and `Metric.validate_expires`). These will allow FOG to provide custom validation for its version-based `expires` values.
+    * Add a limit of 250 pending ping files. ([#1217](https://github.com/mozilla/glean/pull/1217)).
+    * Don't retry the ping uploader when waiting, sleep instead. This avoids a never-ending increase of the backoff time ([#1217](https://github.com/mozilla/glean/pull/1217)).
+
+# 59.0.0
+
+* [Commits](https://github.com/mozilla-mobile/android-components/compare/v58.0.0...v59.0.0)
+* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/119?closed=1)
+* [Dependencies](https://github.com/mozilla-mobile/android-components/blob/v59.0.0/buildSrc/src/main/java/Dependencies.kt)
+* [Gecko](https://github.com/mozilla-mobile/android-components/blob/v59.0.0/buildSrc/src/main/java/Gecko.kt)
+* [Configuration](https://github.com/mozilla-mobile/android-components/blob/v59.0.0/buildSrc/src/main/java/Config.kt)
+
+* **feature-downloads**
+  * 🚒 Bug fixed [issue #8354](https://github.com/mozilla-mobile/android-components/issues/8354) Do not restart FAILED downloads.
+* **browser-tabstray**
+  * Removed the `BrowserTabsTray` that was deprecated in previous releases.
+* **service-telemetry**
+  * This library has been removed. Please use `service-glean` instead.
+* **service-glean**
+  * Glean was upgraded to v32.3.2
+    * Track the size of the database file at startup ([#1141](https://github.com/mozilla/glean/pull/1141)).
+    * Submitting a ping with upload disabled no longer shows an error message ([#1201](https://github.com/mozilla/glean/pull/1201)).
+    * BUGFIX: scan the pending pings directories **after** dealing with upload status on initialization. This is important, because in case upload is disabled we delete any outstanding non-deletion ping file, and if we scan the pending pings folder before doing that we may end up sending pings that should have been discarded. ([#1205](https://github.com/mozilla/glean/pull/1205))
+    * Move logic to limit the number of retries on ping uploading "recoverable failures" to glean-core. ([#1120](https://github.com/mozilla/glean/pull/1120))
+    * The functionality to limit the number of retries in these cases was introduced to the Glean SDK in `v31.1.0`. The work done now was to move that logic to the glean-core in order to avoid code duplication throughout the language bindings.
+    * Update `glean_parser` to `v1.28.3`
+      * BUGFIX: Generate valid C# code when using Labeled metric types.
+      * BUGFIX: Support `HashSet` and `Dictionary` in the C# generated code.
+    * Add a 10MB quota to the pending pings storage. ([#1100](https://github.com/mozilla/glean/pull/1110))
+    * Handle ping registration off the main thread. This removes a potential blocking call ([#1132](https://github.com/mozilla/glean/pull/1132)).
+* **feature-syncedtabs**
+  * Added support for indicators to synced tabs `AwesomeBar` suggestions.
+* **feature-addons**
+  * ⚠️ **This is a breaking change**: The `Addon.translatePermissions` now requires a `context` object and returns a list of localized strings instead of a list of id string resources.
+  * 🚒 Bug fixed [issue #8323](https://github.com/mozilla-mobile/android-components/issues/8323) Add-on permission dialog does not prompt for host permissions.
+
+# 58.0.0
+
+* [Commits](https://github.com/mozilla-mobile/android-components/compare/v57.0.0...v58.0.0)
+* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/118?closed=1)
+* [Dependencies](https://github.com/mozilla-mobile/android-components/blob/v58.0.0/buildSrc/src/main/java/Dependencies.kt)
+* [Gecko](https://github.com/mozilla-mobile/android-components/blob/v58.0.0/buildSrc/src/main/java/Gecko.kt)
+* [Configuration](https://github.com/mozilla-mobile/android-components/blob/v58.0.0/buildSrc/src/main/java/Config.kt)
+
+* **feature-recentlyclosed**
+  * Added a new [RecentlyClosedTabsStorage] and a [RecentlyClosedMiddleware] to maintain a list of restorable recently closed tabs.
+
+# 57.0.0
+
+* [Commits](https://github.com/mozilla-mobile/android-components/compare/v56.0.0...v57.0.0)
+* [Milestone](https://github.com/mozilla-mobile/android-components/milestone/117?closed=1)
+* [Dependencies](https://github.com/mozilla-mobile/android-components/blob/v57.0.0/buildSrc/src/main/java/Dependencies.kt)
+* [Gecko](https://github.com/mozilla-mobile/android-components/blob/v57.0.0/buildSrc/src/main/java/Gecko.kt)
+* [Configuration](https://github.com/mozilla-mobile/android-components/blob/v57.0.0/buildSrc/src/main/java/Config.kt)
 
 * **feature-search**
   * ⚠️ **This is a breaking change**: `SearchFeature.performSearch` now takes a second parameter.
@@ -23,6 +125,40 @@ permalink: /changelog/
   * ⚠️ **This is a breaking change**: Replaces `TopSite` interface with a new generic `TopSite` data class.
   * Implements TopSitesFeature based on the RFC [0006-top-sites-feature.md](https://github.com/mozilla-mobile/android-components/blob/master/docs/rfcs/0006-top-sites-feature.md).
   * Downloads, redirect targets, reloads, embedded resources, and frames are no longer considered for inclusion in top sites. Please see [this Application Services PR](https://github.com/mozilla/application-services/pull/3505) for more details.
+
+* **lib-push-firebase**
+  * Removed non-essential dependency on `com.google.firebase:firebase-core`.
+
+* **lib-crash**
+  * Crash report timestamp is now set to when the crash occurred.
+  * When breadcrumbs limit is reached, oldest breadcrumbs are dropped.
+
+* **feature-toolbar**
+  * Added `ContainerToolbarFeature` to update the toolbar with the container page action whenever the selected tab changes.
+
+* **browser-state**
+  * Added `LastAccessMiddleware` to dispatch `TabSessionAction.UpdateLastAccessAction` when a tab is selected.
+
+* **feature-prompts**
+  * Replaced generic icon in `LoginDialogFragment` with site icon (keep the generic one as fallback)
+
+* **browser-engine-gecko**, **browser-engine-gecko-beta**, **browser-engine-gecko-nightly**
+  * 🚒 Bug fixed [issue #8240](https://github.com/mozilla-mobile/android-components/issues/8240) Crash when dismissing Share dialog.
+
+* **feature-downloads**
+  * ⚠️ **This is a breaking change**: `AndroidDownloadManager.download` returns a `Strings`, `AndroidDownloadManager.tryAgain` requires a `Strings` `id` parameter.
+  * ⚠️ **This is a breaking change**: `ConsumeDownloadAction` requires a `Strings` `id` parameter.
+  * ⚠️ **This is a breaking change**: `DownloadManager#onDownloadStopped` requires a `Strings` `(DownloadState, Long, Status) -> Unit`.
+  * ⚠️ **This is a breaking change**: `DownloadsUseCases.invoke` requires an `Strings` `downloadId` parameter.
+  * ⚠️ **This is a breaking change**: `DownloadState.id` has changed its type from `Long` to `String`.
+  * ⚠️ **This is a breaking change**: `BrowserState.downloads` has changed it's type from `Map<Long, DownloadState>` to `Map<String, DownloadState>`.
+  * 🌟 Added support for persisting/restoring downloads see issue [#7762](https://github.com/mozilla-mobile/android-components/issues/7762).
+  * 🌟 Added `DownloadStorage` for querying stored download metadata.
+  * 🚒 Bug [issue #8190](https://github.com/mozilla-mobile/android-components/issues/8190) ArithmeticException: divide by zero in Download notification.
+  * 🚒 Bug [issue #8363](https://github.com/mozilla-mobile/android-components/issues/8363) IllegalStateException: Not allowed to start service Intent.
+
+* **ui-widgets**
+  * 🆕 New VerticalSwipeRefreshLayout that comes to resolve many of the issues of the platform SwipeRefreshLayout and filters out other gestures than swipe down/up.
 
 # 56.0.0
 

@@ -13,9 +13,7 @@ import androidx.fragment.app.FragmentManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import mozilla.components.browser.state.action.ContentAction
 import mozilla.components.browser.state.selector.findTabOrCustomTab
 import mozilla.components.browser.state.selector.findTabOrCustomTabOrSelectedTab
@@ -69,15 +67,12 @@ import mozilla.components.support.base.feature.OnNeedToRequestPermissions
 import mozilla.components.support.base.feature.PermissionsFeature
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifAnyChanged
-import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifChanged
 import java.lang.ref.WeakReference
 import java.security.InvalidParameterException
 import java.util.Date
 
 @VisibleForTesting(otherwise = PRIVATE)
 internal const val FRAGMENT_TAG = "mozac_feature_prompt_dialog"
-
-private const val PROGRESS_ALMOST_COMPLETE = 90
 
 /**
  * Feature for displaying native dialogs for html elements like: input type
@@ -132,7 +127,6 @@ class PromptFeature private constructor(
     // These three scopes have identical lifetimes. We do not yet have a way of combining scopes
     private var handlePromptScope: CoroutineScope? = null
     private var dismissPromptScope: CoroutineScope? = null
-    private var sessionPromptScope: CoroutineScope? = null
     private var activePromptRequest: PromptRequest? = null
 
     internal val promptAbuserDetector = PromptAbuserDetector()
@@ -222,7 +216,8 @@ class PromptFeature private constructor(
 
     private val filePicker = FilePicker(container, store, customTabId, onNeedToRequestPermissions)
 
-    private val loginPicker =
+    @VisibleForTesting(otherwise = PRIVATE)
+    internal var loginPicker =
         loginPickerView?.let { LoginPicker(store, it, onManageLogins, customTabId) }
 
     override val onNeedToRequestPermissions
@@ -232,6 +227,7 @@ class PromptFeature private constructor(
      * Starts observing the selected session to listen for prompt requests
      * and displays a dialog when needed.
      */
+    @Suppress("ComplexMethod")
     override fun start() {
         promptAbuserDetector.resetJSAlertAbuseState()
 
@@ -243,42 +239,39 @@ class PromptFeature private constructor(
                 .collect { state ->
                     state?.content?.let {
                         if (it.promptRequest != activePromptRequest) {
+                            if (activePromptRequest is SelectLoginPrompt) {
+                                loginPicker?.dismissCurrentLoginSelect(activePromptRequest as SelectLoginPrompt)
+                            }
                             onPromptRequested(state)
                         } else if (!it.loading) {
                             promptAbuserDetector.resetJSAlertAbuseState()
+                        } else if (it.loading) {
+                            if (activePromptRequest is SelectLoginPrompt) {
+                                loginPicker?.dismissCurrentLoginSelect(activePromptRequest as SelectLoginPrompt)
+                            }
                         }
                         activePromptRequest = it.promptRequest
                     }
                 }
         }
 
-        // Dismiss all prompts when page loads are nearly finished. This prevents prompts from the
-        // previous page from covering content. See Fenix#5326
+        // Dismiss all prompts when page URL or session id changes. See Fenix#5326
         dismissPromptScope = store.flowScoped { flow ->
-            flow.mapNotNull { state -> state.findTabOrCustomTabOrSelectedTab(customTabId) }
-                .ifChanged { it.content.progress }
-                .filter { it.content.progress >= PROGRESS_ALMOST_COMPLETE }
-                .collect {
-                    val prompt = activePrompt?.get()
-                    if (prompt?.shouldDismissOnLoad() == true) {
-                        prompt.dismiss()
-                    }
-                    activePrompt?.clear()
-                    loginPicker?.dismissCurrentLoginSelect()
+            flow.ifAnyChanged { state ->
+                arrayOf(
+                    state.selectedTabId,
+                    state.findTabOrCustomTabOrSelectedTab(customTabId)?.content?.url
+                )
+            }.collect {
+                if (activePromptRequest is SelectLoginPrompt) {
+                    loginPicker?.dismissCurrentLoginSelect(activePromptRequest as SelectLoginPrompt)
                 }
-        }
-
-        // Dismiss prompts when a new tab is selected.
-        sessionPromptScope = store.flowScoped { flow ->
-            flow.ifChanged { browserState -> browserState.selectedTabId }
-                .collect {
-                    val prompt = activePrompt?.get()
-                    if (prompt?.shouldDismissOnLoad() == true) {
-                        prompt.dismiss()
-                    }
-                    activePrompt?.clear()
-                    loginPicker?.dismissCurrentLoginSelect()
+                val prompt = activePrompt?.get()
+                if (prompt?.shouldDismissOnLoad() == true) {
+                    prompt.dismiss()
                 }
+                activePrompt?.clear()
+            }
         }
 
         fragmentManager.findFragmentByTag(FRAGMENT_TAG)?.let { fragment ->
@@ -295,7 +288,6 @@ class PromptFeature private constructor(
     override fun stop() {
         handlePromptScope?.cancel()
         dismissPromptScope?.cancel()
-        sessionPromptScope?.cancel()
     }
 
     /**
@@ -489,7 +481,8 @@ class PromptFeature private constructor(
                     sessionId = session.id,
                     hint = promptRequest.hint,
                     // For v1, we only handle a single login and drop all others on the floor
-                    login = promptRequest.logins[0]
+                    login = promptRequest.logins[0],
+                    icon = session.content.icon
                 )
             }
 

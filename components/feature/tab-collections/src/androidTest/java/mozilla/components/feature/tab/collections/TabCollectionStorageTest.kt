@@ -6,6 +6,7 @@ package mozilla.components.feature.tab.collections
 
 import android.content.Context
 import android.util.AttributeSet
+import android.util.JsonWriter
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.paging.PagedList
 import androidx.room.Room
@@ -20,7 +21,7 @@ import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.EngineSessionState
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.concept.engine.Settings
-import mozilla.components.concept.engine.profiler.Profiler
+import mozilla.components.concept.base.profiler.Profiler
 import mozilla.components.concept.engine.utils.EngineVersion
 import mozilla.components.feature.tab.collections.db.TabCollectionDatabase
 import mozilla.components.feature.tab.collections.db.TabEntity
@@ -221,7 +222,7 @@ class TabCollectionStorageTest {
 
     @Test
     @Suppress("ComplexMethod")
-    fun testGettingCollectionsWithLimit() = runBlocking {
+    fun testGettingCollections() = runBlocking {
         storage.createCollection(
             "Articles", listOf(
                 Session("https://www.mozilla.org").apply { title = "Mozilla" }
@@ -250,7 +251,7 @@ class TabCollectionStorageTest {
             )
         )
 
-        val collections = storage.getCollections(limit = 4).first()
+        val collections = storage.getCollections().first()
 
         assertEquals(4, collections.size)
 
@@ -305,7 +306,7 @@ class TabCollectionStorageTest {
 
         assertEquals(2, storage.getTabCollectionsCount())
 
-        val collections = storage.getCollections(limit = 2).first()
+        val collections = storage.getCollections().first()
         assertEquals(2, collections.size)
 
         storage.removeCollection(collections[0])
@@ -374,4 +375,8 @@ class FakeEngine : Engine {
 
 class FakeEngineSessionState : EngineSessionState {
     override fun toJSON() = JSONObject()
+    override fun writeTo(writer: JsonWriter) {
+        writer.beginObject()
+        writer.endObject()
+    }
 }
